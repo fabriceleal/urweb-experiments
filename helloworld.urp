@@ -1,0 +1,16 @@
+file /BlackKing.png fonts/merida/80/BlackKing.png
+file /BlackQueen.png fonts/merida/80/BlackQueen.png
+file /BlackRook.png fonts/merida/80/BlackRook.png
+file /BlackBishop.png fonts/merida/80/BlackBishop.png
+file /BlackKnight.png fonts/merida/80/BlackKnight.png
+file /BlackPawn.png fonts/merida/80/BlackPawn.png
+file /WhiteKing.png fonts/merida/80/WhiteKing.png
+file /WhiteQueen.png fonts/merida/80/WhiteQueen.png
+file /WhiteRook.png fonts/merida/80/WhiteRook.png
+file /WhiteBishop.png fonts/merida/80/WhiteBishop.png
+file /WhiteKnight.png fonts/merida/80/WhiteKnight.png
+file /WhitePawn.png fonts/merida/80/WhitePawn.png
+safeGet Helloworld/main
+library ../urweb-canvas/src/canvas
+
+helloworld
