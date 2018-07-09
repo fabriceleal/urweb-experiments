@@ -19,7 +19,7 @@ type rawPoint = { RawX: int, RawY : int}
 
 type draggingPiece = { Src: rawPoint, Current: rawPoint, Piece: piece }
 	      
-type boardstate = { Highlight: option square, Pieces: list piecerec, DragPiece: option draggingPiece }
+type boardstate = { Ctx: canvas2d, Highlight: option square, Pieces: list piecerec, DragPiece: option draggingPiece }
   
 val pieces : list piecerec =
     { X= 0, Y= 0, Piece= BlackRook}  ::
@@ -56,35 +56,52 @@ val pieces : list piecerec =
 				     { X= 7, Y= 7, Piece= WhiteRook} :: []
     
 fun main () =	
+  (* 
     bk <- fresh; bq <- fresh; br <- fresh; bb <- fresh; bn <- fresh; bp <- fresh;
     wk <- fresh; wq <- fresh; wr <- fresh; wb <- fresh; wn <- fresh; wp <- fresh;
-
+*)
     
     c <- fresh;
     p <- source None;
     
     let
+
+	val bk = make_img(bless("/BlackKing.png"))
+	val bq = make_img(bless("/BlackQueen.png"))
+	val br = make_img(bless("/BlackRook.png"))
+	val bb = make_img(bless("/BlackBishop.png"))
+	val bn = make_img(bless("/BlackKnight.png"))
+	val bp = make_img(bless("/BlackPawn.png"))
+
+		  
+	val wk = make_img(bless("/WhiteKing.png"))
+	val wq = make_img(bless("/WhiteQueen.png"))
+	val wr = make_img(bless("/WhiteRook.png"))
+	val wb = make_img(bless("/WhiteBishop.png"))
+	val wn = make_img(bless("/WhiteKnight.png"))
+	val wp = make_img(bless("/WhitePawn.png"))
+
 	
 	fun paint_row0 ctx row =	    
 	    fillRect ctx 0 (row * size) size size;
 	    fillRect ctx (size * 2) (row * size) size size;
 	    fillRect ctx (size * 4) (row * size) size size;
 	    fillRect ctx (size * 6) (row * size) size size
-
+(*
 	and renderCanvas sg =	    
 	    x2 <- signal sg;
 	    case x2 of
 		Some x => 
 		return <xml>
 		  <active code={
-		drawBoard2 (case x.Highlight of
+		drawBoard2 x.Ctx (case x.Highlight of
 				Some t => t :: []
 			      | _ => []) x.Pieces x.DragPiece;
 		return <xml></xml>}>
 		  </active> 
 		</xml>
 	      | None => return <xml><div></div></xml>
-(**)
+*)
 	and paint_row1 ctx row =	    
 	    fillRect ctx (size) (row * size) size size;
 	    fillRect ctx (size * 2 + size) (row * size) size size;
@@ -107,7 +124,9 @@ fun main () =
 	      | BlackPawn => bp
 
 	and draw_piece ctx (p : piecerec)  =
-	    drawImage ctx (piece_to_id p.Piece) 0 0 80 80 (size * p.X) (size * p.Y) size size
+	    (*drawImage ctx (piece_to_id p.Piece) 0 0 80 80 (size * p.X) (size * p.Y) size size *)
+	    drawme <- piece_to_id p.Piece;
+	    drawImage2 ctx drawme (float (size * p.X)) (float (size * p.Y)) (float size) (float size)
 	    
 	and draw_pieces ctx ps =
 	    case ps of
@@ -129,7 +148,10 @@ fun main () =
 	and draw_piecedrag ctx pd =
 	    case pd of
 		Some pd' =>
-		drawImage ctx (piece_to_id pd'.Piece) 0 0 80 80 (pd'.Current.RawX - (trunc (float(size) / 2.0))) (pd'.Current.RawY - (trunc (float(size) / 2.0))) size size
+	      (* 		drawImage ctx (piece_to_id pd'.Piece) 0 0 80 80 (pd'.Current.RawX - (trunc (float(size) / 2.0))) (pd'.Current.RawY - (trunc (float(size) / 2.0))) size size *)
+
+		drawme <- piece_to_id pd'.Piece;
+		drawImage2 ctx drawme (float(pd'.Current.RawX) - (float(size) / 2.0)) (float(pd'.Current.RawY) - (float(size) / 2.0)) (float size) (float size)
 	      | _ => return ()
 		     
 	and drawBoard ctx hs ps pd =
@@ -164,15 +186,15 @@ fun main () =
 	    return ()
 
 	(* TODO arrows *)
-	and drawBoard2 hs ps db =
-	    ctx <- getContext2d c;
+	and drawBoard2 ctx hs ps db =
+	    (*ctx <- getContext2d c; *)
 	    drawBoard ctx hs ps db
 
 	and drawBoard3 () =
 	    x2 <- get p;
 	    case x2 of
 		Some x => 
-		drawBoard2 (case x.Highlight of
+		drawBoard2 x.Ctx (case x.Highlight of
 				Some t => t :: []
 			      | _ => []) x.Pieces x.DragPiece
 	      | _ => return ()
@@ -219,7 +241,8 @@ fun main () =
 			None => return ()
 		      | Some p'''' =>
 			let		
-			    val st : boardstate = {Highlight = None, (* Some {X = 0, Y = 0}, *)
+			    val st : boardstate = {Ctx = p''.Ctx,
+						   Highlight = None, (* Some {X = 0, Y = 0}, *)
 						   Pieces = (removePSquare p''.Pieces f'),
 						   DragPiece = Some {
 						   Src = { RawX = e.OffsetX,
@@ -245,7 +268,8 @@ fun main () =
 		(case p''.DragPiece of
 		    None => 		
 		    let
-			val st : boardstate = {Highlight = None,
+			val st : boardstate = {Ctx = p''.Ctx,
+					       Highlight = None,
 					       Pieces = p''.Pieces,
 					       DragPiece = None}
 		    in
@@ -258,7 +282,8 @@ fun main () =
 			val sqY = clampToBoardCoordinateY e.OffsetY
 
 				  (* TODO legal move validation, handle captures *)
-			val st : boardstate = {Highlight = None,
+			val st : boardstate = {Ctx = p''.Ctx,
+					       Highlight = None,
 					       Pieces = { Piece=d.Piece,X=sqX, Y=sqY } :: p''.Pieces,
 					       DragPiece = None}
 		    in
@@ -276,7 +301,8 @@ fun main () =
 		case p''.DragPiece of
 		    None =>
 		    let
-			val st : boardstate = {Highlight = Some {
+			val st : boardstate = {Ctx = p''.Ctx,
+					       Highlight = Some {
 					       X = clampToBoardCoordinateX e.OffsetX,
 					       Y = clampToBoardCoordinateY e.OffsetY
 					       },
@@ -288,7 +314,8 @@ fun main () =
 		    end
 		  | Some d => 		    
 		    let
-			val st : boardstate = {Highlight = None,
+			val st : boardstate = {Ctx = p''.Ctx,
+					       Highlight = None,
 					       Pieces = p''.Pieces,
 					       DragPiece = Some {
 					       Src = d.Src,
@@ -304,16 +331,19 @@ fun main () =
 		    end
 	    
 	and loadPage () =
-	    giveFocus c;
+	    
+
+	    
+	    (*giveFocus c; *)
 	    ctx <- getContext2d c;
 	    (*  *)
 	    
 	    (* drawBoard ctx [] pieces None; *)
-	    set p (Some {Highlight = None, Pieces=pieces, DragPiece = None});
-	    (*
+	    set p (Some {Ctx = ctx, Highlight = None, Pieces=pieces, DragPiece = None});
+	    
 	    requestAnimationFrame2 drawBoard3;
 	     
-
+	    (* 
 	    drawBoard4 ();
 	    *)
 	    return ()
@@ -324,7 +354,7 @@ fun main () =
 	  <head><title>Hello World</title></head>
 	   <body onload={loadPage ()} >
 	     <h1>hello world</h1>
-	     
+	     (*
 	     <img id={bk} alt="black king" height=80 width=80 src="/BlackKing.png" />
 	     <img id={bq} alt="black queen" height=80 width=80 src="/BlackQueen.png" />
 	     <img id={br} alt="black rook" height=80 width=80 src="/BlackRook.png" />
@@ -338,14 +368,16 @@ fun main () =
 	     <img id={wb} alt="white bishop" height=80 width=80 src="/WhiteBishop.png" />
 	     <img id={wn} alt="white knight" height=80 width=80 src="/WhiteKnight.png" />
 	     <img id={wp} alt="white pawn" height=80 width=80 src="/WhitePawn.png" />
-	     
+	     *)
 	     <a link={index()}>another page</a>
-
+(*
 	     <div>
 	       <dyn signal={renderCanvas p} />
 	     </div>
-(**)	     
-	     <button value="click" onclick={fn _ => set p (Some {Highlight = Some {X = 0, Y = 0},
+*)	     
+<button value="click" onclick={fn _ =>
+				  ctx <- getContext2d c;
+				  set p (Some {Ctx = ctx, Highlight = Some {X = 0, Y = 0},
 								 Pieces=pieces,
 								 DragPiece = None}) } />
 											       
