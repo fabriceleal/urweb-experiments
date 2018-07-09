@@ -1,5 +1,5 @@
 
-val main : unit -> transaction page
+val main : string -> transaction page
 
 val index : unit -> transaction page
 
