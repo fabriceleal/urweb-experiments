@@ -13,4 +13,5 @@ file /WhitePawn.png fonts/merida/80/WhitePawn.png
 safeGet Helloworld/main
 library ../urweb-canvas/src/canvas
 
+$/list
 helloworld
