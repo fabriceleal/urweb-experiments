@@ -1,3 +1,7 @@
 *~
 *.exe
 *.zip
+*.db
+*.db-wal
+*.db-shm
+*.sql

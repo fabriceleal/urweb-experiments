@@ -1,13 +1,18 @@
 
 open Canvas_FFI
-	       
+
+sequence postSeq
+table post : { Id : int, Nam : string }
+		 PRIMARY KEY Id
+
+	     
 val light = make_rgba 239 238 240 1.0
 val dark = make_rgba 119 138 181 1.0
 val red = make_rgba 255 0 0 1.0
 val size = 60
 val x = 10
 val y = 10
-
+	
 datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |
 	 BlackKing | BlackQueen | BlackRook | BlackBishop | BlackKnight | BlackPawn
 	      
@@ -441,5 +446,55 @@ fun main fen =
      
 and index () = return <xml>
   <body>index
+    <a link={createPost ()}>create post</a>
+    <a link={allPosts  ()}>all posts</a>
     <a link={main "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}>new page</a></body></xml>
+(**)
 
+and postPage id =
+    return <xml>
+      <body>
+      <h1>post # {[id]}</h1>
+      </body>
+      </xml>
+
+and allPosts () = 
+  rows <- queryX (SELECT * FROM post)
+		 (fn data => <xml><tr><td><a link={postPage data.Post.Id}>{[data.Post.Nam]}</a></td></tr></xml>);
+    return <xml>
+      <body>
+      <table border=1>
+	<tr><th>Name</th></tr>
+
+	{rows}
+      </table>
+
+      <a link={createPost ()}>Create Post</a>
+      </body>
+    </xml>
+ 
+
+and createPost () = return <xml>
+  <body>
+    <form>
+      <table>
+	
+	<tr><th>Name:</th><td><textbox{#Nam}/></td></tr>
+	<tr><th/><td><submit action={addPost} value="Create" /></td></tr>
+      </table>
+    </form>
+  </body>
+</xml>
+
+and addPost newPost =
+    id <- nextval postSeq;
+    dml (INSERT INTO post (Id, Nam) VALUES ({[id]}, {[newPost.Nam]}));
+    (*return <xml>
+      <body>
+	<p>Ok!</p>
+	</body>
+      </xml> *)
+    (*x <- allPosts ();
+     return x *)
+    redirect (bless "/Helloworld/allPosts")
+    

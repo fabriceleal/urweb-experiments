@@ -10,8 +10,10 @@ file /WhiteRook.png fonts/merida/80/WhiteRook.png
 file /WhiteBishop.png fonts/merida/80/WhiteBishop.png
 file /WhiteKnight.png fonts/merida/80/WhiteKnight.png
 file /WhitePawn.png fonts/merida/80/WhitePawn.png
-safeGet Helloworld/main
 library ../urweb-canvas/src/canvas
+database helloworld
+sql helloworld.sql
+allow url /Helloworld/allPosts
 
 $/string
 $/list
