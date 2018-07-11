@@ -3,9 +3,9 @@
 helloworld.exe: *.ur *.urs *.urp
 	urweb -dbms sqlite -db helloworld.db helloworld
 
-helloworld.db: 
+helloworld.db: helloworld.sql
 	rm -f helloworld.db
 	sqlite3 helloworld.db < helloworld.sql
 
-run: helloworld.exe helloworld.db
+run: helloworld.exe
 	./helloworld.exe

@@ -14,7 +14,9 @@ library ../urweb-canvas/src/canvas
 database helloworld
 sql helloworld.sql
 allow url /Helloworld/allPosts
+safeGet Helloworld/postPage
 
 $/string
 $/list
+sharedboard
 helloworld

@@ -1,11 +1,15 @@
 
 open Canvas_FFI
 
-sequence postSeq
-table post : { Id : int, Nam : string }
-		 PRIMARY KEY Id
 
-	     
+structure Room = Sharedboard.Make(struct
+				      type t = string (* TODO make this some sort of typed message type *)
+				  end)
+
+sequence postSeq
+table post : { Id : int, Nam : string, Room : Room.topic }
+		 PRIMARY KEY Id
+		 
 val light = make_rgba 239 238 240 1.0
 val dark = make_rgba 119 138 181 1.0
 val red = make_rgba 255 0 0 1.0
@@ -24,7 +28,7 @@ type rawPoint = { RawX: int, RawY : int}
 
 type draggingPiece = { Src: rawPoint, Current: rawPoint, Piece: piece }
 	      
-type boardstate = { Ctx: canvas2d, Highlight: option square, Pieces: list piecerec, DragPiece: option draggingPiece }
+type boardstate = { (*Ctx: canvas2d,*) Highlight: option square, Pieces: list piecerec, DragPiece: option draggingPiece }
 
 fun char_to_piece c =
     case c of
@@ -107,20 +111,21 @@ val pieces : list piecerec =
 				     { X= 5, Y= 7, Piece= WhiteBishop}  ::
 				     { X= 6, Y= 7, Piece= WhiteKnight} ::
 				     { X= 7, Y= 7, Piece= WhiteRook} :: []
-    
-fun main fen =	
+    (* main fen *)
+fun postPage id =	
   (* 
     bk <- fresh; bq <- fresh; br <- fresh; bb <- fresh; bn <- fresh; bp <- fresh;
     wk <- fresh; wq <- fresh; wr <- fresh; wb <- fresh; wn <- fresh; wp <- fresh;
    *)
     
-    
+  
+    current <- oneRow (SELECT post.Nam, post.Room FROM post WHERE post.Id = {[id]});
+    renderstate <- source None;
+    ch <- Room.subscribe current.Post.Room;
     c <- fresh;
-    p <- source None;
     
     let
-	
-	    
+		    
 	fun clampToBoardCoordinateX rawX =
 	    trunc (float(rawX) / float(size))
 
@@ -143,9 +148,21 @@ fun main fen =
 		else
 		    h :: (removePSquare r f)		       
 	      | [] => []
+
+	and getRoom () =
+	    r <- oneRow (SELECT post.Room FROM post WHERE post.Id = {[id]});
+	    return r.Post.Room
+
+	and speak line =
+	    room <- getRoom ();
+	    Room.send room line
+
+	and doSpeak () =	 
+	    rpc (speak "MOVE PIECE") (* *)
+(*	    rpc (debug "hello") *)
 						   
 	and mousedown e =
-	    p' <- get p;
+	    p' <- get renderstate;
 	    case p' of
 		Some p'' => 
 		let
@@ -159,7 +176,7 @@ fun main fen =
 			None => return ()
 		      | Some p'''' =>
 			let		
-			    val st : boardstate = {Ctx = p''.Ctx,
+			    val st : boardstate = {(*Ctx = p''.Ctx,*)
 						   Highlight = None, (* Some {X = 0, Y = 0}, *)
 						   Pieces = (removePSquare p''.Pieces f'),
 						   DragPiece = Some {
@@ -172,7 +189,7 @@ fun main fen =
 						   Piece = p''''.Piece
 						  }}
 			in
-			    set p (Some st);
+			    set renderstate (Some st);
 			    return ()
 			end	
 		end
@@ -180,18 +197,18 @@ fun main fen =
 			
 			
 	and mouseup e =
-	    p' <- get p;
+	    p' <- get renderstate;
 	    case p' of
 		Some p'' =>
 		(case p''.DragPiece of
 		    None => 		
 		    let
-			val st : boardstate = {Ctx = p''.Ctx,
+			val st : boardstate = {(*Ctx = p''.Ctx,*)
 					       Highlight = None,
 					       Pieces = p''.Pieces,
 					       DragPiece = None}
 		    in
-			set p (Some st);
+			set renderstate (Some st);
 			return ()
 		    end
 		  | Some d =>
@@ -200,26 +217,27 @@ fun main fen =
 			val sqY = clampToBoardCoordinateY e.OffsetY
 
 				  (* TODO legal move validation, handle captures *)
-			val st : boardstate = {Ctx = p''.Ctx,
+			val st : boardstate = {(*Ctx = p''.Ctx,*)
 					       Highlight = None,
 					       Pieces = { Piece=d.Piece,X=sqX, Y=sqY } :: p''.Pieces,
 					       DragPiece = None}
 		    in
-			set p (Some st);
+			set renderstate (Some st);
+			(*doSpeak "MOVE PIECE";*)
 			return ()
 		    end	)
 	      | None => return ()
 	    
 
 	and mousemove e =
-	    p' <- get p;
+	    p' <- get renderstate;
 	    case p' of
 		None => return ()
 	      | Some p'' =>
 		case p''.DragPiece of
 		    None =>
 		    let
-			val st : boardstate = {Ctx = p''.Ctx,
+			val st : boardstate = {(*Ctx = p''.Ctx,*)
 					       Highlight = Some {
 					       X = clampToBoardCoordinateX e.OffsetX,
 					       Y = clampToBoardCoordinateY e.OffsetY
@@ -227,12 +245,12 @@ fun main fen =
 					       Pieces = p''.Pieces,
 					       DragPiece = None}
 		    in
-			set p (Some st);
+			set renderstate (Some st);
 			return ()
 		    end
 		  | Some d => 		    
 		    let
-			val st : boardstate = {Ctx = p''.Ctx,
+			val st : boardstate = {(*Ctx = p''.Ctx,*)
 					       Highlight = None,
 					       Pieces = p''.Pieces,
 					       DragPiece = Some {
@@ -244,7 +262,7 @@ fun main fen =
 					       Piece = d.Piece
 					       }}
 		    in
-			set p (Some st);
+			set renderstate (Some st);
 			return ()
 		    end
 	    
@@ -273,6 +291,8 @@ fun main fen =
 
 
 	    let
+
+		
 		fun paint_row0 ctx row =	    
 		    fillRect ctx 0 (row * size) size size;
 		    fillRect ctx (size * 2) (row * size) size size;
@@ -338,8 +358,6 @@ fun main fen =
 		and draw_piecedrag ctx pd =
 		    case pd of
 			Some pd' =>
-			(* 		drawImage ctx (piece_to_id pd'.Piece) 0 0 80 80 (pd'.Current.RawX - (trunc (float(size) / 2.0))) (pd'.Current.RawY - (trunc (float(size) / 2.0))) size size *)
-
 			drawImage2 ctx (piece_to_id pd'.Piece) (float(pd'.Current.RawX) - (float(size) / 2.0)) (float(pd'.Current.RawY) - (float(size) / 2.0)) (float size) (float size)
 		      | _ => return ()
 			     
@@ -380,10 +398,10 @@ fun main fen =
 		    drawBoard ctx hs ps db
 
 		and drawBoard3 () =
-		    x2 <- get p;
+		    x2 <- get renderstate;
 		    case x2 of
 			Some x => 
-			drawBoard2 x.Ctx (case x.Highlight of
+			drawBoard2 ctx (case x.Highlight of
 					      Some t => t :: []
 					    | _ => []) x.Pieces x.DragPiece
 		      | _ => return ()
@@ -393,9 +411,9 @@ fun main fen =
 		    setTimeout drawBoard4 30
 
 	    in
-	
+
 		(* drawBoard ctx [] pieces None; *)
-		set p (Some {Ctx = ctx, Highlight = None, Pieces=(fen_to_pieces fen), DragPiece = None});
+		set renderstate (Some {(*Ctx = ctx,*) Highlight = None, Pieces=(fen_to_pieces "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), DragPiece = None});
 		
 		requestAnimationFrame2 drawBoard3;
 		
@@ -408,9 +426,9 @@ fun main fen =
     in
 	
 	return  <xml>
-	  <head><title>Hello World</title></head>
+	  <head><title>Post # {[id]}</title></head>
 	   <body onload={loadPage ()} >
-	     <h1>hello world</h1>
+	     <h1>{[id]} {[current.Post.Nam]}</h1>
 	     (*
 	     <img id={bk} alt="black king" height=80 width=80 src="/BlackKing.png" />
 	     <img id={bq} alt="black queen" height=80 width=80 src="/BlackQueen.png" />
@@ -427,14 +445,17 @@ fun main fen =
 	     <img id={wp} alt="white pawn" height=80 width=80 src="/WhitePawn.png" />
 	     *)
 	     <a link={index()}>another page</a>
+
+	     <button value="Send:" onclick={fn _ => doSpeak ()}/>
+(*	       *)
 (*
 	     <div>
 	       <dyn signal={renderCanvas p} />
 	     </div>
 *)	     
 <button value="click" onclick={fn _ =>
-				  ctx <- getContext2d c;
-				  set p (Some {Ctx = ctx, Highlight = Some {X = 0, Y = 0},
+				  (*ctx <- getContext2d c;*)
+				  set renderstate (Some {(*Ctx = ctx,*) Highlight = Some {X = 0, Y = 0},
 								 Pieces=pieces,
 								 DragPiece = None}) } />
 											       
@@ -448,13 +469,13 @@ and index () = return <xml>
   <body>index
     <a link={createPost ()}>create post</a>
     <a link={allPosts  ()}>all posts</a>
-    <a link={main "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}>new page</a></body></xml>
-(**)
+    <a link={main () }>new page</a></body></xml>
+(* postPage id *)
 
-and postPage id =
+and main () =
     return <xml>
       <body>
-      <h1>post # {[id]}</h1>
+      <h1>bla bla main!</h1>
       </body>
       </xml>
 
@@ -488,7 +509,8 @@ and createPost () = return <xml>
 
 and addPost newPost =
     id <- nextval postSeq;
-    dml (INSERT INTO post (Id, Nam) VALUES ({[id]}, {[newPost.Nam]}));
+    sharedboard <- Room.create;
+    dml (INSERT INTO post (Id, Nam, Room) VALUES ({[id]}, {[newPost.Nam]}, {[sharedboard]}));
     (*return <xml>
       <body>
 	<p>Ok!</p>
