@@ -1,28 +1,24 @@
 
 open Canvas_FFI
 
+type square = { X: int, Y : int}
 
+datatype boardmsg =
+	 MovePiece of square * square
+       | Highlight of square
+	 
 structure Room = Sharedboard.Make(struct
-				      type t = string (* TODO make this some sort of typed message type *)
+				      type t = boardmsg (* TODO make this some sort of typed message type *)
 				  end)
 
 sequence postSeq
 table post : { Id : int, Nam : string, Room : Room.topic }
 		 PRIMARY KEY Id
-		 
-val light = make_rgba 239 238 240 1.0
-val dark = make_rgba 119 138 181 1.0
-val red = make_rgba 255 0 0 1.0
-val size = 60
-val x = 10
-val y = 10
 	
 datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |
 	 BlackKing | BlackQueen | BlackRook | BlackBishop | BlackKnight | BlackPawn
 	      
 type piecerec = { X: int, Y : int, Piece : piece  }
-
-type square = { X: int, Y : int}
 
 type rawPoint = { RawX: int, RawY : int}
 
@@ -112,6 +108,14 @@ val pieces : list piecerec =
 				     { X= 6, Y= 7, Piece= WhiteKnight} ::
 				     { X= 7, Y= 7, Piece= WhiteRook} :: []
 
+    	 
+val light = make_rgba 239 238 240 1.0
+val dark = make_rgba 119 138 181 1.0
+val red = make_rgba 255 0 0 1.0
+val size = 60
+val x = 10
+val y = 10
+	
 fun postPage id () =
     let
 	fun getRoom () =
@@ -218,7 +222,7 @@ fun postPage id () =
 				 DragPiece = None}
 			 in
 			     set renderstate (Some st);
-			     (*doSpeak "MOVE PIECE";*)
+			     doSpeak (MovePiece ({X=(clampToBoardCoordinateX d.Src.RawX), Y=(clampToBoardCoordinateY d.Src.RawY)}, {X=sqX,Y=sqY}));
 			     return ()
 			 end	)
 		  | None => return ()
@@ -386,12 +390,33 @@ fun postPage id () =
 			drawBoard3 ();
 			setTimeout drawBoard4 30
 
+		    and handle_boardmsg s =
+			case s of
+			    MovePiece(src, dest) => return ()
+			  | Highlight(sq) =>
+			    s' <- get renderstate;
+			    case s' of
+			      | Some s'' =>
+				set renderstate (Some {
+						 Highlight = Some sq,
+						 Pieces = s''.Pieces,
+						 DragPiece = s''.DragPiece
+						})
+			      | None => return ()
+			
+		    and listener () =
+			s <- recv ch;
+			handle_boardmsg s;
+			listener ()
+			    
+
 		in
 
 		    set renderstate (Some { Highlight = None, Pieces=(fen_to_pieces "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), DragPiece = None});
 		    
 		    requestAnimationFrame2 drawBoard3;
-		    
+
+		    listener ();
 		    return ()
 		end
 
@@ -404,7 +429,7 @@ fun postPage id () =
 	    
 	    <a link={index()}>another page</a>
 
-	    <button value="Send:" onclick={fn _ => doSpeak "MOVE PIECE"} />
+	    <button value="Send" onclick={fn _ => doSpeak (Highlight {X=5, Y=5})} />
 	      
 	    <button value="click" onclick={fn _ =>
 						set renderstate (Some {Highlight = Some {X = 0, Y = 0},
@@ -445,8 +470,7 @@ and allPosts () =
     return <xml>
       <body>
       <table border=1>
-	<tr><th>Name</th></tr>
-	<tr><th>Actions</th></tr>
+	<tr><th>Name</th><th>Actions</th></tr>
 	{rows}
       </table>
 
