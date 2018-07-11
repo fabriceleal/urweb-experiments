@@ -111,14 +111,9 @@ val pieces : list piecerec =
 				     { X= 5, Y= 7, Piece= WhiteBishop}  ::
 				     { X= 6, Y= 7, Piece= WhiteKnight} ::
 				     { X= 7, Y= 7, Piece= WhiteRook} :: []
-    (* main fen *)
-fun postPage id =	
-  (* 
-    bk <- fresh; bq <- fresh; br <- fresh; bb <- fresh; bn <- fresh; bp <- fresh;
-    wk <- fresh; wq <- fresh; wr <- fresh; wb <- fresh; wn <- fresh; wp <- fresh;
-   *)
-    
-  
+
+fun postPage id () =	
+
     current <- oneRow (SELECT post.Nam, post.Room FROM post WHERE post.Id = {[id]});
     renderstate <- source None;
     ch <- Room.subscribe current.Post.Room;
@@ -131,7 +126,7 @@ fun postPage id =
 
 	and clampToBoardCoordinateY rawY =
 	    trunc (float(rawY) / float(size))
-(**)
+
 	and pieceInSquare (x : int) (y : int) =
 	    let
 		fun tmp (pp : piecerec) =
@@ -176,8 +171,8 @@ fun postPage id =
 			None => return ()
 		      | Some p'''' =>
 			let		
-			    val st : boardstate = {(*Ctx = p''.Ctx,*)
-						   Highlight = None, (* Some {X = 0, Y = 0}, *)
+			    val st : boardstate = {
+						   Highlight = None, 
 						   Pieces = (removePSquare p''.Pieces f'),
 						   DragPiece = Some {
 						   Src = { RawX = e.OffsetX,
@@ -203,7 +198,7 @@ fun postPage id =
 		(case p''.DragPiece of
 		    None => 		
 		    let
-			val st : boardstate = {(*Ctx = p''.Ctx,*)
+			val st : boardstate = {
 					       Highlight = None,
 					       Pieces = p''.Pieces,
 					       DragPiece = None}
@@ -217,7 +212,7 @@ fun postPage id =
 			val sqY = clampToBoardCoordinateY e.OffsetY
 
 				  (* TODO legal move validation, handle captures *)
-			val st : boardstate = {(*Ctx = p''.Ctx,*)
+			val st : boardstate = {
 					       Highlight = None,
 					       Pieces = { Piece=d.Piece,X=sqX, Y=sqY } :: p''.Pieces,
 					       DragPiece = None}
@@ -237,7 +232,7 @@ fun postPage id =
 		case p''.DragPiece of
 		    None =>
 		    let
-			val st : boardstate = {(*Ctx = p''.Ctx,*)
+			val st : boardstate = {
 					       Highlight = Some {
 					       X = clampToBoardCoordinateX e.OffsetX,
 					       Y = clampToBoardCoordinateY e.OffsetY
@@ -250,7 +245,7 @@ fun postPage id =
 		    end
 		  | Some d => 		    
 		    let
-			val st : boardstate = {(*Ctx = p''.Ctx,*)
+			val st : boardstate = {
 					       Highlight = None,
 					       Pieces = p''.Pieces,
 					       DragPiece = Some {
@@ -285,11 +280,8 @@ fun postPage id =
 	    wp <- make_img(bless("/WhitePawn.png"));
     
 	    
-	    (*giveFocus c; *)
 	    ctx <- getContext2d c;
-	    (*  *)
-
-
+	    
 	    let
 
 		
@@ -298,21 +290,7 @@ fun postPage id =
 		    fillRect ctx (size * 2) (row * size) size size;
 		    fillRect ctx (size * 4) (row * size) size size;
 		    fillRect ctx (size * 6) (row * size) size size
-		(*
-		 and renderCanvas sg =	    
-		     x2 <- signal sg;
-		     case x2 of
-			 Some x => 
-			 return <xml>
-			   <active code={
-			 drawBoard2 x.Ctx (case x.Highlight of
-					       Some t => t :: []
-					     | _ => []) x.Pieces x.DragPiece;
-			 return <xml></xml>}>
-</active> 
-</xml>
-		       | None => return <xml><div></div></xml>
-		 *)
+		
 		and paint_row1 ctx row =	    
 		    fillRect ctx (size) (row * size) size size;
 		    fillRect ctx (size * 2 + size) (row * size) size size;
@@ -334,8 +312,7 @@ fun postPage id =
 		      | BlackKnight => bn
 		      | BlackPawn => bp
 
-		and draw_piece ctx (p : piecerec)  =
-		    (*drawImage ctx (piece_to_id p.Piece) 0 0 80 80 (size * p.X) (size * p.Y) size size *)
+		and draw_piece ctx (p : piecerec) =		    
 		    drawImage2 ctx (piece_to_id p.Piece) (float (size * p.X)) (float (size * p.Y)) (float size) (float size)
 		    
 		and draw_pieces ctx ps =
@@ -394,7 +371,6 @@ fun postPage id =
 
 		(* TODO arrows *)
 		and drawBoard2 ctx hs ps db =
-		    (*ctx <- getContext2d c; *)
 		    drawBoard ctx hs ps db
 
 		and drawBoard3 () =
@@ -412,14 +388,10 @@ fun postPage id =
 
 	    in
 
-		(* drawBoard ctx [] pieces None; *)
-		set renderstate (Some {(*Ctx = ctx,*) Highlight = None, Pieces=(fen_to_pieces "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), DragPiece = None});
+		set renderstate (Some { Highlight = None, Pieces=(fen_to_pieces "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), DragPiece = None});
 		
 		requestAnimationFrame2 drawBoard3;
 		
-		(* 
-		 drawBoard4 ();
-		 *)	
 		return ()
 	    end
 	    
@@ -429,33 +401,13 @@ fun postPage id =
 	  <head><title>Post # {[id]}</title></head>
 	   <body onload={loadPage ()} >
 	     <h1>{[id]} {[current.Post.Nam]}</h1>
-	     (*
-	     <img id={bk} alt="black king" height=80 width=80 src="/BlackKing.png" />
-	     <img id={bq} alt="black queen" height=80 width=80 src="/BlackQueen.png" />
-	     <img id={br} alt="black rook" height=80 width=80 src="/BlackRook.png" />
-	     <img id={bb} alt="black bishop" height=80 width=80 src="/BlackBishop.png" />
-	     <img id={bn} alt="black knight" height=80 width=80 src="/BlackKnight.png" />
-	     <img id={bp} alt="black pawn" height=80 width=80 src="/BlackPawn.png" />
 	     
-	     <img id={wk} alt="white king" height=80 width=80 src="/WhiteKing.png" />
-	     <img id={wq} alt="white queen" height=80 width=80 src="/WhiteQueen.png" />
-	     <img id={wr} alt="white rook" height=80 width=80 src="/WhiteRook.png" />
-	     <img id={wb} alt="white bishop" height=80 width=80 src="/WhiteBishop.png" />
-	     <img id={wn} alt="white knight" height=80 width=80 src="/WhiteKnight.png" />
-	     <img id={wp} alt="white pawn" height=80 width=80 src="/WhitePawn.png" />
-	     *)
 	     <a link={index()}>another page</a>
 
 	     <button value="Send:" onclick={fn _ => doSpeak ()}/>
-(*	       *)
-(*
-	     <div>
-	       <dyn signal={renderCanvas p} />
-	     </div>
-*)	     
+
 <button value="click" onclick={fn _ =>
-				  (*ctx <- getContext2d c;*)
-				  set renderstate (Some {(*Ctx = ctx,*) Highlight = Some {X = 0, Y = 0},
+				  set renderstate (Some {Highlight = Some {X = 0, Y = 0},
 								 Pieces=pieces,
 								 DragPiece = None}) } />
 											       
@@ -470,7 +422,6 @@ and index () = return <xml>
     <a link={createPost ()}>create post</a>
     <a link={allPosts  ()}>all posts</a>
     <a link={main () }>new page</a></body></xml>
-(* postPage id *)
 
 and main () =
     return <xml>
@@ -481,12 +432,20 @@ and main () =
 
 and allPosts () = 
   rows <- queryX (SELECT * FROM post)
-		 (fn data => <xml><tr><td><a link={postPage data.Post.Id}>{[data.Post.Nam]}</a></td></tr></xml>);
+		 (fn data => <xml>
+		   <tr>
+		     <td>{[data.Post.Nam]}</td>
+		     <td>
+		       <form>
+			 <submit action={postPage data.Post.Id} value="Enter"/>
+		       </form>
+		     </td>
+		 </tr></xml>);
     return <xml>
       <body>
       <table border=1>
 	<tr><th>Name</th></tr>
-
+	<tr><th>Actions</th></tr>
 	{rows}
       </table>
 
@@ -494,7 +453,6 @@ and allPosts () =
       </body>
     </xml>
  
-
 and createPost () = return <xml>
   <body>
     <form>
@@ -511,12 +469,5 @@ and addPost newPost =
     id <- nextval postSeq;
     sharedboard <- Room.create;
     dml (INSERT INTO post (Id, Nam, Room) VALUES ({[id]}, {[newPost.Nam]}, {[sharedboard]}));
-    (*return <xml>
-      <body>
-	<p>Ok!</p>
-	</body>
-      </xml> *)
-    (*x <- allPosts ();
-     return x *)
     redirect (bless "/Helloworld/allPosts")
     
