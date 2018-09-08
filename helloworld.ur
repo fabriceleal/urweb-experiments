@@ -8,13 +8,17 @@ datatype boardmsg =
        | Highlight of square
 	 
 structure Room = Sharedboard.Make(struct
-				      type t = boardmsg (* TODO make this some sort of typed message type *)
+				      type t = boardmsg
 				  end)
 
 sequence postSeq
-table post : { Id : int, Nam : string, Room : Room.topic }
+table post : { Id : int, Nam : string, CurrentPositionId : option int, Room : Room.topic }
 		 PRIMARY KEY Id
-	
+
+sequence positionSeq
+table position : {Id: int, PostId: int, Fen : string, PreviousPositionId: option int }
+		 PRIMARY KEY Id
+
 datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |
 	 BlackKing | BlackQueen | BlackRook | BlackBishop | BlackKnight | BlackPawn
 	      
@@ -73,6 +77,8 @@ fun fen_to_pieces (s : string) =
     in
 	fen_to_pieces_aux s 0 0
     end
+
+val startingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     
 val pieces : list piecerec =
     { X= 0, Y= 0, Piece= BlackRook}  ::
@@ -123,6 +129,19 @@ fun postPage id () =
 	    return r.Post.Room
 
 	and speak line =
+	    (case line of
+	       | MovePiece (src, dest) =>
+	     
+		 idP <- nextval positionSeq;
+		 
+		 row <- oneRow (SELECT post.CurrentPositionId, position.Fen
+				FROM post LEFT JOIN position ON post.Id = position.PostId WHERE post.Id = {[id]} );
+		 dml (UPDATE post SET CurrentPositionId = {[Some idP]} WHERE Id = {[id]});
+		 dml (INSERT INTO position (Id, PostId, Fen, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[startingFen]},
+										   {[row.Post.CurrentPositionId]}) );
+	       
+		 return ()
+	       | _ => return ());
 	    room <- getRoom ();
 	    Room.send room line
 
@@ -130,7 +149,7 @@ fun postPage id () =
 	    rpc (speak line) 
     in
 
-	current <- oneRow (SELECT post.Nam, post.Room FROM post WHERE post.Id = {[id]});
+	current <- oneRow (SELECT post.Nam, post.Room, position.Fen FROM post LEFT JOIN position ON post.Id = position.Id WHERE post.Id = {[id]} );
 	renderstate <- source None;
 	ch <- Room.subscribe current.Post.Room;
 	c <- fresh;
@@ -444,7 +463,7 @@ fun postPage id () =
 
 		in
 
-		    set renderstate (Some { Highlight = None, Pieces=(fen_to_pieces "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), DragPiece = None});
+		    set renderstate (Some { Highlight = None, Pieces=(fen_to_pieces startingFen), DragPiece = None});
 		    
 		    requestAnimationFrame2 drawBoard3;
 
@@ -522,8 +541,12 @@ and createPost () = return <xml>
 </xml>
 
 and addPost newPost =
-    id <- nextval postSeq;
+    id <- nextval postSeq;    
+    idP <- nextval positionSeq;
     sharedboard <- Room.create;
-    dml (INSERT INTO post (Id, Nam, Room) VALUES ({[id]}, {[newPost.Nam]}, {[sharedboard]}));
+    
+    dml (INSERT INTO post (Id, Nam, CurrentPositionId, Room) VALUES ({[id]}, {[newPost.Nam]}, {[Some idP]}, {[sharedboard]}));
+    dml (INSERT INTO position (Id, PostId, Fen, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]}, {[None]} ));
+    
     redirect (bless "/Helloworld/allPosts")
     
