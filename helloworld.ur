@@ -13,15 +13,17 @@ structure Room = Sharedboard.Make(struct
 
 sequence postSeq
 sequence positionSeq
-	 
+sequence commentSeq
+
 table post : { Id : int, Nam : string, CurrentPositionId : int, Room : Room.topic }
 		 PRIMARY KEY Id
-(*		 CONSTRAINT CurrentPosition FOREIGN KEY CurrentPositionId REFERENCES position(Id)*)
 	     
 table position : {Id: int, PostId: int, Fen : string, PreviousPositionId: option int }
 		     PRIMARY KEY Id
-(*		     CONSTRAINT PositionToPost FOREIGN KEY PostId REFERENCES post(Id)*)
 
+table comment : {Id: int, PositionId: int, Content: string }
+		    PRIMARY KEY Id
+		
 datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |
 	 BlackKing | BlackQueen | BlackRook | BlackBishop | BlackKnight | BlackPawn
 	      
@@ -149,7 +151,7 @@ fun removeFromAddAt (pieces : list piecerec) (sqSrc : square) (sqDest : square) 
     in
 	case maybepiece of
 	    Some piece => 
-	    { Piece=piece.Piece,X=sqDest.X, Y=sqDest.Y } :: (removePSquare2 pieces sqSrc.X sqSrc.Y)
+	    { Piece=piece.Piece,X=sqDest.X, Y=sqDest.Y } :: (removePSquare2 (removePSquare2 pieces sqSrc.X sqSrc.Y) sqDest.X sqDest.Y)
 	  | None => pieces
     end
 
@@ -190,8 +192,8 @@ fun pieces_to_fen3 (pieces : list piecerec) : string  =
     List.foldr strcat "" (pieces_to_fen pieces)
 
 val startingFen2 = pieces_to_fen3 ({Piece=BlackKnight, X = 1, Y = 0} :: [])    
-val startingFen3 = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-val startingFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
+val startingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+val startingFen3 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
 		  
 val pieces : list piecerec =
     { X= 0, Y= 0, Piece= BlackRook}  ::
@@ -341,14 +343,17 @@ fun postPage id () =
 			     val sqX = clampToBoardCoordinateX e.OffsetX
 			     val sqY = clampToBoardCoordinateY e.OffsetY
 
+			     val srcX = clampToBoardCoordinateX d.Src.RawX
+			     val srcY = clampToBoardCoordinateY d.Src.RawY
+
 			     (* TODO legal move validation, handle captures *)
 			     val st : boardstate = {
 				 Highlight = None,
-				 Pieces = { Piece=d.Piece,X=sqX, Y=sqY } :: p''.Pieces,
+				 Pieces = { Piece=d.Piece,X=sqX, Y=sqY } :: (removePSquare2 p''.Pieces sqX sqY),
 				 DragPiece = None}
 			 in
 			     set renderstate (Some st);
-			     doSpeak (MovePiece ({X=(clampToBoardCoordinateX d.Src.RawX), Y=(clampToBoardCoordinateY d.Src.RawY)}, {X=sqX,Y=sqY}));
+			     doSpeak (MovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}));
 			     return ()
 			 end	)
 		  | None => return ()
@@ -364,10 +369,6 @@ fun postPage id () =
 			let
 			    val st : boardstate = {
 				Highlight = None,
-				(* Some {
-				X = clampToBoardCoordinateX e.OffsetX,
-				Y = clampToBoardCoordinateY e.OffsetY
-				} *)
 				Pieces = p''.Pieces,
 				DragPiece = None}
 			in
