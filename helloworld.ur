@@ -12,12 +12,15 @@ structure Room = Sharedboard.Make(struct
 				  end)
 
 sequence postSeq
-table post : { Id : int, Nam : string, CurrentPositionId : option int, Room : Room.topic }
-		 PRIMARY KEY Id
-
 sequence positionSeq
-table position : {Id: int, PostId: int, Fen : string, PreviousPositionId: option int }
+	 
+table post : { Id : int, Nam : string, CurrentPositionId : int, Room : Room.topic }
 		 PRIMARY KEY Id
+(*		 CONSTRAINT CurrentPosition FOREIGN KEY CurrentPositionId REFERENCES position(Id)*)
+	     
+table position : {Id: int, PostId: int, Fen : string, PreviousPositionId: option int }
+		     PRIMARY KEY Id
+(*		     CONSTRAINT PositionToPost FOREIGN KEY PostId REFERENCES post(Id)*)
 
 datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |
 	 BlackKing | BlackQueen | BlackRook | BlackBishop | BlackKnight | BlackPawn
@@ -28,8 +31,25 @@ type rawPoint = { RawX: int, RawY : int}
 
 type draggingPiece = { Src: rawPoint, Current: rawPoint, Piece: piece }
 	      
-type boardstate = { (*Ctx: canvas2d,*) Highlight: option square, Pieces: list piecerec, DragPiece: option draggingPiece }
-
+type boardstate = { Highlight: option square, Pieces: list piecerec, DragPiece: option draggingPiece }
+	  
+fun piece_to_char p =
+    case p of
+	BlackKing => #"k"
+      | BlackQueen => #"q"
+      | BlackRook => #"r"
+      | BlackBishop => #"b"
+      | BlackKnight => #"n"
+      | BlackPawn => #"p"
+		     
+      | WhiteKing => #"K"
+      | WhiteQueen => #"Q"
+      | WhiteRook => #"R"
+      | WhiteBishop => #"B"
+      | WhiteKnight => #"N"
+      | WhitePawn => #"P"
+		     		     
+		  
 fun char_to_piece c =
     case c of
 	#"k" => Some BlackKing
@@ -48,7 +68,7 @@ fun char_to_piece c =
 		
       | _ => None
 		  
-fun fen_to_pieces (s : string) =
+fun fen_to_pieces (s : string) : list piecerec =
     let
 	fun fen_to_pieces_aux (s : string) row col =
 	    let
@@ -78,8 +98,101 @@ fun fen_to_pieces (s : string) =
 	fen_to_pieces_aux s 0 0
     end
 
-val startingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+fun pieceInSquare (x : int) (y : int) : (piecerec -> bool) =
+    let
+	fun tmp (pp : piecerec) =
+	    pp.X = x && pp.Y = y
+    in
+	tmp
+    end
     
+fun pieceAt (ls : list piecerec) (f : piecerec -> bool) : option piecerec =
+    case ls of
+	h :: r =>
+	if (f h) then
+	    Some h
+	else
+	    pieceAt r f
+      | [] => None
+
+fun pieceAt2 (ls : list piecerec) (x : int) (y : int) : option piecerec =
+    case ls of
+	h :: r =>
+	if (h.X = x && h.Y = y) then
+	    Some h
+	else
+	    pieceAt2 r x y
+      | [] => None
+	      
+fun removePSquare (ls : list piecerec) (f : piecerec -> bool) : (list piecerec) =
+    case ls of
+	h :: r =>
+	if (f h) then
+	    r
+	else
+	    h :: (removePSquare r f)		       
+      | [] => []
+
+fun removePSquare2 (ls : list piecerec) x y : (list piecerec) =
+    case ls of
+	h :: r =>
+	if (h.X = x && h.Y = y) then
+	    r
+	else
+	    h :: (removePSquare2 r x y)		       
+      | [] => []
+	      
+fun removeFromAddAt (pieces : list piecerec) (sqSrc : square) (sqDest : square) =
+    let
+	val maybepiece = pieceAt2 pieces sqSrc.X sqSrc.Y
+    in
+	case maybepiece of
+	    Some piece => 
+	    { Piece=piece.Piece,X=sqDest.X, Y=sqDest.Y } :: (removePSquare2 pieces sqSrc.X sqSrc.Y)
+	  | None => pieces
+    end
+
+
+fun rank_to_fenFrag (pieces : list piecerec) (rank : int) (empty : int) (file : int) : list string  =
+    let
+	val p = pieceAt2 pieces file rank
+    in
+	if file = 8 then
+	    if (empty > 0) then
+		    (show empty) :: []
+		else
+		    []
+	else	    
+	    case p of
+		Some piece =>
+		(if (empty > 0) then
+		     show empty
+		 else
+		     "") :: ((show (piece_to_char piece.Piece)) :: (rank_to_fenFrag pieces rank 0 (file + 1)))
+	      | None =>	    
+		rank_to_fenFrag pieces rank (empty + 1) (file + 1)
+		
+    end
+
+fun pieces_to_fen pieces =
+    let
+	fun pieces_to_fen_aux pieces rank =
+	    if (rank = 8) then
+		[]
+	    else
+		List.append ("/" :: (rank_to_fenFrag pieces rank 0 0)) (pieces_to_fen_aux pieces (rank + 1))
+    in
+	List.append (rank_to_fenFrag pieces 0 0 0) (pieces_to_fen_aux pieces 1)
+    end
+
+fun pieces_to_fen3 (pieces : list piecerec) : string  =
+    List.foldr strcat "" (pieces_to_fen pieces)
+
+val startingFen2 = pieces_to_fen3 ({Piece=BlackKnight, X = 1, Y = 0} :: [])    
+val startingFen3 = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+val startingFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
+		  
 val pieces : list piecerec =
     { X= 0, Y= 0, Piece= BlackRook}  ::
 				     { X= 1, Y= 0, Piece= BlackKnight} ::
@@ -130,16 +243,25 @@ fun postPage id () =
 
 	and speak line =
 	    (case line of
-	       | MovePiece (src, dest) =>
+		 MovePiece (src, dest) =>
 	     
 		 idP <- nextval positionSeq;
 		 
 		 row <- oneRow (SELECT post.CurrentPositionId, position.Fen
-				FROM post LEFT JOIN position ON post.Id = position.PostId WHERE post.Id = {[id]} );
-		 dml (UPDATE post SET CurrentPositionId = {[Some idP]} WHERE Id = {[id]});
-		 dml (INSERT INTO position (Id, PostId, Fen, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[startingFen]},
-										   {[row.Post.CurrentPositionId]}) );
-	       
+				FROM post JOIN position ON post.CurrentPositionId = position.Id
+				WHERE post.Id = {[id]} );
+		 
+		 let
+		     val pieces = fen_to_pieces row.Position.Fen
+		     val manipulated = removeFromAddAt pieces src dest
+		     val newFen = pieces_to_fen3 manipulated (* row.Position.Fen *)
+		 in
+		 
+		     dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
+		     dml (INSERT INTO position (Id, PostId, Fen, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]},
+											 {[Some row.Post.CurrentPositionId]}) )
+		 end;
+		 
 		 return ()
 	       | _ => return ());
 	    room <- getRoom ();
@@ -149,7 +271,9 @@ fun postPage id () =
 	    rpc (speak line) 
     in
 
-	current <- oneRow (SELECT post.Nam, post.Room, position.Fen FROM post LEFT JOIN position ON post.Id = position.Id WHERE post.Id = {[id]} );
+	current <- oneRow (SELECT post.Nam, post.Room, position.Fen
+			   FROM post JOIN position ON post.CurrentPositionId = position.Id (* post.Id = position.PostId *)
+			   WHERE post.Id = {[id]});
 	renderstate <- source None;
 	ch <- Room.subscribe current.Post.Room;
 	c <- fresh;
@@ -161,43 +285,6 @@ fun postPage id () =
 
 	    and clampToBoardCoordinateY rawY =
 		trunc (float(rawY) / float(size))
-
-	    and pieceInSquare (x : int) (y : int) =
-		let
-		    fun tmp (pp : piecerec) =
-			pp.X = x && pp.Y = y
-		in
-		    tmp
-		end
-
-	    and pieceAt ls f =
-		case ls of
-		    h :: r =>
-		    if (f h) then
-			Some h
-		    else
-			pieceAt r f
-		  | [] => None
-
-	    and removePSquare ls f =
-		case ls of
-		    h :: r =>
-		    if (f h) then
-			r
-		    else
-			h :: (removePSquare r f)		       
-		  | [] => []
-
-	    and removeFromAddAt pieces sqSrc sqDest =
-		let
-		    val f = pieceInSquare sqSrc.X sqSrc.Y
-		    val maybepiece = pieceAt pieces f
-		in
-		    case maybepiece of
-			Some piece => 
-			{ Piece=piece.Piece,X=sqDest.X, Y=sqDest.Y } :: (removePSquare pieces f)
-		      | None => pieces
-		end
 			  
 	    and mousedown e =
 		p' <- get renderstate;
@@ -462,9 +549,14 @@ fun postPage id () =
 			    
 
 		in
-
-		    set renderstate (Some { Highlight = None, Pieces=(fen_to_pieces startingFen), DragPiece = None});
-		    
+		    (*
+		    (case current.Position.Fen of
+			| Some fen => 
+			  set renderstate (Some { Highlight = None, Pieces=(fen_to_pieces fen), DragPiece = None})
+			| None =>
+			  set renderstate (Some { Highlight = None, Pieces=(fen_to_pieces startingFen), DragPiece = None}));
+		     *)
+		    set renderstate (Some { Highlight = None, Pieces=(fen_to_pieces current.Position.Fen), DragPiece = None});
 		    requestAnimationFrame2 drawBoard3;
 
 		    listener ();
@@ -545,7 +637,7 @@ and addPost newPost =
     idP <- nextval positionSeq;
     sharedboard <- Room.create;
     
-    dml (INSERT INTO post (Id, Nam, CurrentPositionId, Room) VALUES ({[id]}, {[newPost.Nam]}, {[Some idP]}, {[sharedboard]}));
+    dml (INSERT INTO post (Id, Nam, CurrentPositionId, Room) VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[sharedboard]}));
     dml (INSERT INTO position (Id, PostId, Fen, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]}, {[None]} ));
     
     redirect (bless "/Helloworld/allPosts")
