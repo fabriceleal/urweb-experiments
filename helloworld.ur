@@ -151,6 +151,15 @@ fun postPage id () =
 		    tmp
 		end
 
+	    and pieceAt ls f =
+		case ls of
+		    h :: r =>
+		    if (f h) then
+			Some h
+		    else
+			pieceAt r f
+		  | [] => None
+
 	    and removePSquare ls f =
 		case ls of
 		    h :: r =>
@@ -159,6 +168,17 @@ fun postPage id () =
 		    else
 			h :: (removePSquare r f)		       
 		  | [] => []
+
+	    and removeFromAddAt pieces sqSrc sqDest =
+		let
+		    val f = pieceInSquare sqSrc.X sqSrc.Y
+		    val maybepiece = pieceAt pieces f
+		in
+		    case maybepiece of
+			Some piece => 
+			{ Piece=piece.Piece,X=sqDest.X, Y=sqDest.Y } :: (removePSquare pieces f)
+		      | None => pieces
+		end
 			  
 	    and mousedown e =
 		p' <- get renderstate;
@@ -237,10 +257,11 @@ fun postPage id () =
 			None =>
 			let
 			    val st : boardstate = {
-				Highlight = Some {
+				Highlight = None,
+				(* Some {
 				X = clampToBoardCoordinateX e.OffsetX,
 				Y = clampToBoardCoordinateY e.OffsetY
-				},
+				} *)
 				Pieces = p''.Pieces,
 				DragPiece = None}
 			in
@@ -392,7 +413,18 @@ fun postPage id () =
 
 		    and handle_boardmsg s =
 			case s of
-			    MovePiece(src, dest) => return ()
+			    MovePiece(src, dest) =>
+			    s' <- get renderstate;
+			    (case s' of
+                              | Some s'' =>
+				set renderstate (Some {
+						 Highlight = s''.Highlight,
+						 Pieces = (removeFromAddAt s''.Pieces src dest),
+						 DragPiece = s''.DragPiece
+						})
+			      | None => return ()
+			    )
+			    
 			  | Highlight(sq) =>
 			    s' <- get renderstate;
 			    case s' of
@@ -429,8 +461,7 @@ fun postPage id () =
 	    
 	    <a link={index()}>another page</a>
 
-	    <button value="Send" onclick={fn _ => doSpeak (Highlight {X=5, Y=5})} />
-	      
+	    <button value="Send" onclick={fn _ => doSpeak (Highlight {X=5, Y=5})} />	      
 	    <button value="click" onclick={fn _ =>
 						set renderstate (Some {Highlight = Some {X = 0, Y = 0},
 								       Pieces=pieces,
