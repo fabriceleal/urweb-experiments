@@ -100,48 +100,72 @@ fun playerToFen c =
 
 fun fenToPlayer f =
     case f of
-	"w" => Some White
-      | "b" => Some Black
+	#"w" => Some White
+      | #"b" => Some Black
       | _ => None
 		 
 fun fen_to_state s =
     let
-	fun fen_to_pieces_aux s row col =
+	fun parts_pieces_aux pieces player =
+	    {
+	     Pieces = pieces,
+	     Player = player,
+	     WK = True,
+	     WQ = True,
+	     BK = True,
+	     BQ = True,
+	     EnPassant = None,
+	     HalfMove = 0,
+	     FullMove = 1
+	    }
+
+	and fromcastling s pieces player =
+	    parts_pieces_aux pieces player
+	    
+	and fromplayer s pieces =
 	    let
 		val l = strlen s
 	    in
 		if l = 0 then
-		    []
+		    parts_pieces_aux pieces White (* trigger error ? *)
 		else
 		    let
 			val fst = (strsub s 0)
 		    in
-			if fst = #"/" then
-			    fen_to_pieces_aux (substring s 1 (l -1)) (row + 1) 0
-			else
+			case (fenToPlayer fst) of
+			    None => parts_pieces_aux pieces White (* trigger error? *)
+			  | Some player => fromcastling (substring s 2 (l -2)) pieces player
+		    end
+	    end
+	
+	and fen_to_pieces_aux s row col pieces =
+	    let
+		val l = strlen s
+	    in
+		if l = 0 then
+		    parts_pieces_aux pieces White (* trigger error ? *)
+		else
+		    let
+			val fst = (strsub s 0)
+		    in
+			case fst of
+			    #"/" => fen_to_pieces_aux (substring s 1 (l -1)) (row + 1) 0 pieces
+			  | #" " => fromplayer (substring s 1 (l -1)) pieces
+			  | _ => 			
 			    if isdigit fst then
 				case (read (show fst) : option int) of
-				    Some i => fen_to_pieces_aux (substring s 1 (l -1)) row (col + i)
-				  | None => [] (*trigger error ? *)
+				    Some i => fen_to_pieces_aux (substring s 1 (l -1)) row (col + i) pieces
+				  | None => parts_pieces_aux pieces White (* trigger error ? *)
 			    else
 				case (char_to_piece fst) of
-				    None => [] (*trigger error? *)
-				  | Some p => {X = col, Y = row, Piece= p} :: (fen_to_pieces_aux (substring s 1 (l - 1)) row (col + 1))
+				    None => parts_pieces_aux pieces White (* trigger error? *)
+				  | Some p => fen_to_pieces_aux (substring s 1 (l - 1)) row (col + 1)
+								({X = col, Y = row, Piece= p} :: pieces)
 		    end
 	    end
 	    
     in
-	{
-	 Pieces = fen_to_pieces_aux s 0 0,
-	 Player = White,
-	 WK = True,
-	 WQ = True,
-	 BK = True,
-	 BQ = True,
-	 EnPassant = None,
-	 HalfMove = 0,
-	 FullMove = 1
-	}
+	fen_to_pieces_aux s 0 0 []
     end
 
 
@@ -342,7 +366,7 @@ fun genSlide pieces player src dX dY =
 	  | Nvm => []
     end
 
-
+(* transform list option T -> list T *) 
 fun removeNones ls =
     case ls of
 	h :: t =>
@@ -351,6 +375,7 @@ fun removeNones ls =
 	   | None => removeNones t)
       | [] => []
 
+(* get square if its valid for landing a piece *)
 fun offTest pieces player src dX dY =
     let
 	val test = {X=src.X + dX,Y=src.Y + dY}
@@ -430,13 +455,16 @@ fun testLegal state src dest =
     in
 	case maybepiece of
 	    Some piece =>
-	    (case (piece_to_kind piece.Piece) of
-		 Pawn => hasDest (legalsPawn pieces (piece_to_player piece.Piece) src) dest
-	       | Bishop => hasDest (legalsDiagonals pieces (piece_to_player piece.Piece) src) dest
-	       | Rook => hasDest (legalsOrtho pieces (piece_to_player piece.Piece) src) dest
-	       | Queen => hasDest (legalsSlide pieces (piece_to_player piece.Piece) src) dest
-	       | Knight => hasDest (legalsKnight pieces (piece_to_player piece.Piece) src) dest
-	       | King => hasDest (legalsKing pieces (piece_to_player piece.Piece) src) dest)
+	    if (peq (piece_to_player piece.Piece) state.Player) then		
+		(case (piece_to_kind piece.Piece) of
+		     Pawn => hasDest (legalsPawn pieces (piece_to_player piece.Piece) src) dest
+		   | Bishop => hasDest (legalsDiagonals pieces (piece_to_player piece.Piece) src) dest
+		   | Rook => hasDest (legalsOrtho pieces (piece_to_player piece.Piece) src) dest
+		   | Queen => hasDest (legalsSlide pieces (piece_to_player piece.Piece) src) dest
+		   | Knight => hasDest (legalsKnight pieces (piece_to_player piece.Piece) src) dest
+		   | King => hasDest (legalsKing pieces (piece_to_player piece.Piece) src) dest)
+	    else
+		False
 	  | None => False
     end
 

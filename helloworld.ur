@@ -31,9 +31,8 @@ type draggingPiece = { Src: rawPoint, Current: rawPoint, Piece: piece }
 type boardstate = { Highlight: option square, Pieces: list piecerec, DragPiece: option draggingPiece, Full : gamestate }
 	  
 
-
 val startingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-	  
+	(*  
 val pieces : list piecerec =
     { X= 0, Y= 0, Piece= BlackRook}  ::
 				     { X= 1, Y= 0, Piece= BlackKnight} ::
@@ -67,7 +66,7 @@ val pieces : list piecerec =
 				     { X= 5, Y= 7, Piece= WhiteBishop}  ::
 				     { X= 6, Y= 7, Piece= WhiteKnight} ::
 				     { X= 7, Y= 7, Piece= WhiteRook} :: []
-
+*)
     	 
 val light = make_rgba 239 238 240 1.0
 val dark = make_rgba 119 138 181 1.0
