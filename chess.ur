@@ -437,16 +437,20 @@ fun legalsKnight pieces player src =
 (* TODO remove self checks *)
 (* TODO castling *)
 (* TODO track castling *)
-fun legalsKing pieces player src =
-    removeNones (offTest pieces player src (-1) (1) ::
-			 offTest pieces player src (-1) (0) ::
-			 offTest pieces player src (-1) (-1) ::
-			 offTest pieces player src (1) (1) ::
-			 offTest pieces player src (1) (0) ::
-			 offTest pieces player src (1) (-1) ::
-			 offTest pieces player src (0) (1) ::
-			 offTest pieces player src (0) (-1) ::
-			 [])
+fun legalsKing state player src =
+    let
+	val pieces = state.Pieces
+    in
+	removeNones (offTest pieces player src (-1) (1) ::
+			     offTest pieces player src (-1) (0) ::
+			     offTest pieces player src (-1) (-1) ::
+			     offTest pieces player src (1) (1) ::
+			     offTest pieces player src (1) (0) ::
+			     offTest pieces player src (1) (-1) ::
+			     offTest pieces player src (0) (1) ::
+			     offTest pieces player src (0) (-1) ::
+			     [])
+    end
         
 (* TODO remove self checks *)
 fun legalsDiagonals pieces player src =
@@ -498,24 +502,103 @@ fun testLegal state src dest =
 		   | Rook => hasDest (legalsOrtho pieces (piece_to_player piece.Piece) src) dest
 		   | Queen => hasDest (legalsSlide pieces (piece_to_player piece.Piece) src) dest
 		   | Knight => hasDest (legalsKnight pieces (piece_to_player piece.Piece) src) dest
-		   | King => hasDest (legalsKing pieces (piece_to_player piece.Piece) src) dest)
+		   | King => hasDest (legalsKing state (piece_to_player piece.Piece) src) dest)
 	    else
 		False
 	  | None => False
     end
 
+fun isPawnUp2Sq pieces src dest =
+    case (pieceAt2 pieces src.X src.Y) of
+       None => False
+     | Some p =>
+       case (piece_to_kind p.Piece) of
+	   Pawn => abs((float src.Y) - (float dest.Y)) = 2.0
+	 | _ => False
+
+fun isKingMove player pieces src =
+    case (pieceAt2 pieces src.X src.Y) of
+       None => False
+     | Some p =>
+       if (peq (piece_to_player p.Piece) player) then
+	   case (piece_to_kind p.Piece) of
+	       King => True
+	     | _ => False
+       else
+	   False
+
+fun isRookQMove player pieces src =
+    case (pieceAt2 pieces src.X src.Y) of
+       None => False
+     | Some p =>
+       if (peq (piece_to_player p.Piece) player) then
+	   case (piece_to_kind p.Piece) of
+	       Rook => p.X < 4
+	     | _ => False
+       else
+	   False
+	   
+fun isRookKMove player pieces src =
+    case (pieceAt2 pieces src.X src.Y) of
+       None => False
+     | Some p =>
+       if (peq (piece_to_player p.Piece) player) then
+	   case (piece_to_kind p.Piece) of
+	       Rook => p.X > 4
+	     | _ => False
+       else
+	   False			     
+
 fun doMove state src dest =
     case (testLegal state src dest) of
-	True => Some {
-		Pieces = (removeFromAddAt state.Pieces src dest),
-		Player = other state.Player,
-		WK = state.WK,
-		WQ = state.WQ,
-		BK = state.BK,
-		BQ = state.BQ,
-		EnPassant = None,
-		HalfMove = state.HalfMove + 1,
-		FullMove = state.FullMove + 1
-		}
+	True =>
+	let
+	    val requiresEnPassant = isPawnUp2Sq state.Pieces src dest
+	    val piecesnew = removeFromAddAt state.Pieces src dest
+	in
+	    Some {
+	    Pieces = piecesnew,
+	    Player = other state.Player,
+	    WK = if (state.WK) && (peq White state.Player) then
+		     if (isKingMove White state.Pieces src) || (isRookKMove White state.Pieces src) then
+			 False
+		     else
+			 True
+		 else
+		     state.WK,
+	    WQ =  if (state.WQ) && (peq White state.Player) then
+		      if (isKingMove White state.Pieces src) || (isRookQMove White state.Pieces src) then
+			 False
+		     else
+			 True
+		 else
+		     state.WQ,
+	    BK = if (state.BK) && (peq Black state.Player) then
+		     if (isKingMove Black state.Pieces src) || (isRookKMove Black state.Pieces src) then
+			 False
+		     else
+			 True
+		 else
+		     state.BK,
+	    BQ = if (state.BQ) && (peq Black state.Player) then
+		     if (isKingMove Black state.Pieces src) || (isRookQMove Black state.Pieces src) then
+			 False
+		     else
+			 True
+		 else
+		     state.BQ,
+	    EnPassant = if requiresEnPassant then
+			    case state.Player of
+				White => Some { X = dest.X, Y = dest.Y + 1}
+			      | Black => Some { X = dest.X, Y = dest.Y - 1 }
+			else
+			    None,
+	    HalfMove = state.HalfMove + 1,
+	    FullMove = if (peq state.Player Black) then
+			   state.FullMove + 1
+		       else
+			   state.FullMove
+	    }
+	end
       | False => None
 		

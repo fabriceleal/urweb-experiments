@@ -11,8 +11,8 @@ datatype boardmsg =
 datatype serverboardmsg =
 	 SMovePiece of square * square
        | SHighlight of square
-       | SBack
-       | SForward
+       | SBack 
+       | SForward 
 
 	 
 structure Room = Sharedboard.Make(struct
@@ -86,6 +86,7 @@ fun postPage id () =
 		     let			     
 			 val newFen = state_to_fen manipulated
 		     in
+			 
 			 dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
 			 dml (INSERT INTO position (Id, PostId, Fen, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]},
 											     {[Some row.Post.CurrentPositionId]}) );
