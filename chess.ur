@@ -21,7 +21,43 @@ type gamestate = {
      HalfMove : int,
      FullMove : int
      }
-		
+
+(*  
+val pieces : list piecerec =
+    { X= 0, Y= 0, Piece= BlackRook}  ::
+				     { X= 1, Y= 0, Piece= BlackKnight} ::
+				     { X= 2, Y= 0, Piece= BlackBishop} ::
+				     { X= 3, Y= 0, Piece= BlackQueen} ::
+				     { X= 4, Y= 0, Piece= BlackKing} ::
+				     { X= 5, Y= 0, Piece= BlackBishop}  ::
+				     { X= 6, Y= 0, Piece= BlackKnight} ::
+				     { X= 7, Y= 0, Piece= BlackRook} ::
+				     { X= 0, Y= 1, Piece= BlackPawn} ::
+				     { X= 1, Y= 1, Piece= BlackPawn} ::
+				     { X= 2, Y= 1, Piece= BlackPawn} ::
+				     { X= 3, Y= 1, Piece= BlackPawn} ::
+				     { X= 4, Y= 1, Piece= BlackPawn} ::
+				     { X= 5, Y= 1, Piece= BlackPawn} ::
+				     { X= 6, Y= 1, Piece= BlackPawn} ::
+				     { X= 7, Y= 1, Piece= BlackPawn} ::
+				     { X= 0, Y= 6, Piece= WhitePawn} ::
+				     { X= 1, Y= 6, Piece= WhitePawn} ::
+				     { X= 2, Y= 6, Piece= WhitePawn} ::
+				     { X= 3, Y= 6, Piece= WhitePawn} ::
+				     { X= 4, Y= 6, Piece= WhitePawn} ::
+				     { X= 5, Y= 6, Piece= WhitePawn} ::
+				     { X= 6, Y= 6, Piece= WhitePawn} ::
+				     { X= 7, Y= 6, Piece= WhitePawn} ::
+				     { X= 0, Y= 7, Piece= WhiteRook}  ::
+				     { X= 1, Y= 7, Piece= WhiteKnight} ::
+				     { X= 2, Y= 7, Piece= WhiteBishop} ::
+				     { X= 3, Y= 7, Piece= WhiteQueen} ::
+				     { X= 4, Y= 7, Piece= WhiteKing} ::
+				     { X= 5, Y= 7, Piece= WhiteBishop}  ::
+				     { X= 6, Y= 7, Piece= WhiteKnight} ::
+				     { X= 7, Y= 7, Piece= WhiteRook} :: []
+*)
+    	
 (* functions *)
 
 fun other a =

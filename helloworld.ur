@@ -1,11 +1,19 @@
 
 open Canvas_FFI
 open Chess
-     
+
+type position = { Id: int, State: gamestate, Highlight: list square } 
 
 datatype boardmsg =
-	 MovePiece of square * square
-       | Highlight of square
+	 Highlight of square
+       | Position of position
+
+datatype serverboardmsg =
+	 SMovePiece of square * square
+       | SHighlight of square
+       | SBack
+       | SForward
+
 	 
 structure Room = Sharedboard.Make(struct
 				      type t = boardmsg
@@ -32,42 +40,7 @@ type boardstate = { Highlight: option square, Pieces: list piecerec, DragPiece: 
 	  
 
 val startingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-	(*  
-val pieces : list piecerec =
-    { X= 0, Y= 0, Piece= BlackRook}  ::
-				     { X= 1, Y= 0, Piece= BlackKnight} ::
-				     { X= 2, Y= 0, Piece= BlackBishop} ::
-				     { X= 3, Y= 0, Piece= BlackQueen} ::
-				     { X= 4, Y= 0, Piece= BlackKing} ::
-				     { X= 5, Y= 0, Piece= BlackBishop}  ::
-				     { X= 6, Y= 0, Piece= BlackKnight} ::
-				     { X= 7, Y= 0, Piece= BlackRook} ::
-				     { X= 0, Y= 1, Piece= BlackPawn} ::
-				     { X= 1, Y= 1, Piece= BlackPawn} ::
-				     { X= 2, Y= 1, Piece= BlackPawn} ::
-				     { X= 3, Y= 1, Piece= BlackPawn} ::
-				     { X= 4, Y= 1, Piece= BlackPawn} ::
-				     { X= 5, Y= 1, Piece= BlackPawn} ::
-				     { X= 6, Y= 1, Piece= BlackPawn} ::
-				     { X= 7, Y= 1, Piece= BlackPawn} ::
-				     { X= 0, Y= 6, Piece= WhitePawn} ::
-				     { X= 1, Y= 6, Piece= WhitePawn} ::
-				     { X= 2, Y= 6, Piece= WhitePawn} ::
-				     { X= 3, Y= 6, Piece= WhitePawn} ::
-				     { X= 4, Y= 6, Piece= WhitePawn} ::
-				     { X= 5, Y= 6, Piece= WhitePawn} ::
-				     { X= 6, Y= 6, Piece= WhitePawn} ::
-				     { X= 7, Y= 6, Piece= WhitePawn} ::
-				     { X= 0, Y= 7, Piece= WhiteRook}  ::
-				     { X= 1, Y= 7, Piece= WhiteKnight} ::
-				     { X= 2, Y= 7, Piece= WhiteBishop} ::
-				     { X= 3, Y= 7, Piece= WhiteQueen} ::
-				     { X= 4, Y= 7, Piece= WhiteKing} ::
-				     { X= 5, Y= 7, Piece= WhiteBishop}  ::
-				     { X= 6, Y= 7, Piece= WhiteKnight} ::
-				     { X= 7, Y= 7, Piece= WhiteRook} :: []
-*)
-    	 
+ 
 val light = make_rgba 239 238 240 1.0
 val dark = make_rgba 119 138 181 1.0
 val red = make_rgba 255 0 0 1.0
@@ -94,34 +67,63 @@ fun postPage id () =
 
 	and speak line =
 	    case line of
-		 MovePiece (src, dest) =>
-	     
-		 idP <- nextval positionSeq;
-		 
-		 row <- oneRow (SELECT post.CurrentPositionId, position.Fen
-				FROM post JOIN position ON post.CurrentPositionId = position.Id
-				WHERE post.Id = {[id]} );
-		 
-		 let
-		     val state = fen_to_state row.Position.Fen	
-		 in		     
-		     case (doMove state src dest) of
-		       | None => return ()
-		       | Some manipulated =>
-			 let			     
-			     val newFen = state_to_fen manipulated
-			 in
-			     dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
-			     dml (INSERT INTO position (Id, PostId, Fen, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]},
-												 {[Some row.Post.CurrentPositionId]}) );
-		     
-			     room <- getRoom ();
-			     Room.send room line
-			 end
-		 end		 
-	       | _ =>
-		 room <- getRoom ();
-		 Room.send room line
+		SMovePiece (src, dest) =>
+
+		(* TODO check if move was already played *)
+		
+		idP <- nextval positionSeq;
+		
+		row <- oneRow (SELECT post.CurrentPositionId, position.Fen
+			       FROM post JOIN position ON post.CurrentPositionId = position.Id
+			       WHERE post.Id = {[id]} );
+		
+		let
+		    val state = fen_to_state row.Position.Fen	
+		in		     
+		    case (doMove state src dest) of
+		   | None => return ()
+		   | Some manipulated =>
+		     let			     
+			 val newFen = state_to_fen manipulated
+		     in
+			 dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
+			 dml (INSERT INTO position (Id, PostId, Fen, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]},
+											     {[Some row.Post.CurrentPositionId]}) );
+			 
+			 room <- getRoom ();
+			 
+			 Room.send room (Position {State = (fen_to_state newFen), Id = idP, Highlight = []})
+		     end
+		end
+	      | SBack =>		
+		row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
+		row2 <- oneRow (SELECT position.Id, position.Fen
+				FROM position
+				WHERE position.PostId = {[id]} AND position.Id < {[row.Post.CurrentPositionId]}
+				ORDER BY position.Id DESC LIMIT 1);
+		let
+		    val idP = row2.Position.Id
+		in
+		  dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
+		  room <- getRoom ();
+		  Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
+		end
+	      | SForward =>		
+		row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
+		row2 <- oneRow (SELECT position.Id, position.Fen
+				FROM position
+				WHERE position.PostId = {[id]} AND position.Id > {[row.Post.CurrentPositionId]}
+				ORDER BY position.Id ASC LIMIT 1);
+		let
+		    val idP = row2.Position.Id
+		in
+		  dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
+		  room <- getRoom ();
+		  Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
+		end
+	      | SHighlight sq =>
+		room <- getRoom ();
+		Room.send room (Highlight sq)
 
 	and doSpeak line =	 
 	    rpc (speak line)
@@ -202,17 +204,6 @@ fun postPage id () =
 
 			     val srcX = clampToBoardCoordinateX d.Src.RawX
 			     val srcY = clampToBoardCoordinateY d.Src.RawY
-(*
-			     val legal = testLegal p''.Full {X=srcX,Y=srcY} {X=sqX,Y=sqY}
-			     val st : boardstate = 
-				 if legal then
-				     {Highlight = None,
-				      Pieces = { Piece=d.Piece,X=sqX, Y=sqY } :: (removePSquare2 p''.Pieces sqX sqY),
-				      DragPiece = None}
-				 else
-				     {Highlight = None,
-				      Pieces = full,
-				      DragPiece = None} *)
 	
 			 in
 
@@ -225,7 +216,7 @@ fun postPage id () =
 					       DragPiece = None}
 				 in
 				     set renderstate (Some st);
-				     doSpeak (MovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}));
+				     doSpeak (SMovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}));
 				     return ()
 				 end
 			       | Some newState =>
@@ -236,7 +227,7 @@ fun postPage id () =
 					       DragPiece = None}
 				 in
 				     set renderstate (Some st);
-				     doSpeak (MovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}));
+				     doSpeak (SMovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}));
 				     return ()
 				 end
 			     
@@ -406,27 +397,9 @@ fun postPage id () =
 			setTimeout drawBoard4 30
 
 		    and handle_boardmsg s =
-			case s of
-			    MovePiece(src, dest) =>
-			    s' <- get renderstate;
-			    (case s' of
-				 Some s'' =>
-
-				 (case (doMove s''.Full src dest) of
-				   | None => return ()
-				   | Some newState =>
-				     set renderstate (Some {
-						      Highlight = s''.Highlight,
-						      Pieces = newState.Pieces,
-						      Full = newState,
-						      DragPiece = s''.DragPiece
-						     }))
-				 
-			      | None => return ()
-			    )
-			    
-			  | Highlight(sq) =>
-			    s' <- get renderstate;
+			case s of			   
+			  Highlight(sq) =>
+			    (s' <- get renderstate;
 			    case s' of
 			      | Some s'' =>
 				set renderstate (Some {
@@ -435,7 +408,19 @@ fun postPage id () =
 						 Full = s''.Full,
 						 DragPiece = s''.DragPiece
 						})
-			      | None => return ()
+			      | None => return ())
+			  | Position(p) =>
+			    (s' <- get renderstate;
+			    case s' of
+			      | Some s'' =>
+				set renderstate (Some {
+						 Highlight = None,
+						 Pieces = p.State.Pieces,
+						 Full = p.State,
+						 DragPiece = None
+						})
+			      | None => return ())
+			    
 			
 		    and listener () =
 			s <- recv ch;
@@ -459,7 +444,11 @@ fun postPage id () =
 	    <h1>{[id]} {[current.Post.Nam]}</h1>
 	    
 	    <a link={index()}>another page</a>
+	    <a link={allPosts()}>all posts</a>
 
+	    <button value="Back" onclick={fn _ => doSpeak SBack } />
+	    <button value="Fw" onclick={fn _ => doSpeak SForward } />
+	    
             <canvas id={c} width={size * 8} height={size * 8} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
 	</canvas>
 		    </body>
