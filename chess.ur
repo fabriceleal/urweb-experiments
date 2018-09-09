@@ -6,6 +6,8 @@ datatype kind = King | Queen | Rook | Bishop | Knight | Pawn
 
 datatype player = White | Black
 
+datatype castle = Kingside | Queenside
+
 type piecerec = { X: int, Y : int, Piece : piece  }
 
 type square = { X: int, Y : int}
@@ -336,27 +338,27 @@ fun pemptyOrFoe pieces player x y =
 			   
 (* TODO en passant and promotion *)
 (* TODO remove self checks *)
-fun legalsPawn pieces player src =
+fun legalsPawn state player src =
     case player of
 	White =>
 	List.append	    
 	    (List.append
-		 (if src.Y = 6 && (pempty pieces player src.X (src.Y - 1)) && (pempty pieces player src.X (src.Y - 2)) then
+		 (if src.Y = 6 && (pempty state.Pieces player src.X (src.Y - 1)) && (pempty state.Pieces player src.X (src.Y - 2)) then
 		      {X = src.X, Y = src.Y - 2} :: []
 		  else 
 		      [])
-		 (if (pempty pieces player src.X (src.Y - 1)) then
+		 (if (pempty state.Pieces player src.X (src.Y - 1)) then
 		      { X=src.X, Y = src.Y - 1 } :: []
 		  else
 		      []))
 	    
 	    (List.append 
-		 (if (pfoe pieces player (src.X - 1) (src.Y - 1)) then
+		 (if (pfoe state.Pieces player (src.X - 1) (src.Y - 1)) then
 		      { X=src.X - 1, Y = src.Y - 1 } :: []
 		  else
 		      [])
 		 
-		 (if (pfoe pieces player (src.X + 1) (src.Y - 1)) then
+		 (if (pfoe state.Pieces player (src.X + 1) (src.Y - 1)) then
 		      { X=src.X + 1,  Y = src.Y - 1 } :: []
 		  else
 		      []))
@@ -365,22 +367,22 @@ fun legalsPawn pieces player src =
       | Black =>
 	List.append	    
 	    (List.append
-		 (if src.Y = 1 && (pempty pieces player src.X (src.Y + 1)) && (pempty pieces player src.X (src.Y + 2)) then
+		 (if src.Y = 1 && (pempty state.Pieces player src.X (src.Y + 1)) && (pempty state.Pieces player src.X (src.Y + 2)) then
 		      {X = src.X, Y = src.Y + 2} :: []
 		  else 
 		      [])
-		 (if (pempty pieces player src.X (src.Y + 1)) then
+		 (if (pempty state.Pieces player src.X (src.Y + 1)) then
 		      { X=src.X, Y = src.Y + 1 } :: []
 		  else
 		      []))
 	    
 	    (List.append 
-		 (if (pfoe pieces player (src.X - 1) (src.Y + 1)) then
+		 (if (pfoe state.Pieces player (src.X - 1) (src.Y + 1)) then
 		      { X=src.X - 1, Y = src.Y + 1 } :: []
 		  else
 		      [])
 		 
-		 (if (pfoe pieces player (src.X + 1) (src.Y + 1)) then
+		 (if (pfoe state.Pieces player (src.X + 1) (src.Y + 1)) then
 		      { X=src.X + 1,  Y = src.Y + 1 } :: []
 		  else
 		      []))
@@ -433,7 +435,21 @@ fun legalsKnight pieces player src =
 			 offTest pieces player src (2) (-1) ::
 			 offTest pieces player src (2) (1) ::
 			 [])
-    
+
+fun playerCanCastleK state player =
+    case player of
+    | White =>
+      state.WK
+    | Black =>
+      state.BK
+
+fun playerCanCastleQ state player =
+    case player of
+    | White =>
+      state.WQ
+    | Black =>
+      state.BQ
+      
 (* TODO remove self checks *)
 (* TODO castling *)
 (* TODO track castling *)
@@ -449,6 +465,14 @@ fun legalsKing state player src =
 			     offTest pieces player src (1) (-1) ::
 			     offTest pieces player src (0) (1) ::
 			     offTest pieces player src (0) (-1) ::
+			     (if (playerCanCastleK state player) then
+				  offTest pieces player src 2 0
+			      else
+				  None) ::
+			     (if (playerCanCastleQ state player) then
+				  offTest pieces player src (-2) 0
+			      else
+				  None) ::
 			     [])
     end
         
@@ -497,7 +521,7 @@ fun testLegal state src dest =
 	    Some piece =>
 	    if (peq (piece_to_player piece.Piece) state.Player) then		
 		(case (piece_to_kind piece.Piece) of
-		     Pawn => hasDest (legalsPawn pieces (piece_to_player piece.Piece) src) dest
+		     Pawn => hasDest (legalsPawn state (piece_to_player piece.Piece) src) dest
 		   | Bishop => hasDest (legalsDiagonals pieces (piece_to_player piece.Piece) src) dest
 		   | Rook => hasDest (legalsOrtho pieces (piece_to_player piece.Piece) src) dest
 		   | Queen => hasDest (legalsSlide pieces (piece_to_player piece.Piece) src) dest
@@ -547,7 +571,34 @@ fun isRookKMove player pieces src =
 	       Rook => p.X > 4
 	     | _ => False
        else
-	   False			     
+	   False
+
+fun isCastle pieces src dest =
+    case (pieceAt2 pieces src.X src.Y) of
+       None => None
+     | Some p =>
+       case (piece_to_kind p.Piece) of
+	   King =>
+	   if(float(dest.X) - float(src.X) > 1.0) then
+	       Some Kingside
+	   else
+	       if(float(dest.X) - float(src.X) < -1.0) then
+		   Some Queenside
+	       else
+		   None
+	 | _ => None
+
+
+fun isPawnMoveOrCapture pieces src dest =
+    case (pieceAt2 pieces dest.X dest.Y) of
+	None =>
+	(case (pieceAt2 pieces src.X dest.Y) of
+	    None => False
+	  | Some p =>
+	    (case (piece_to_kind p.Piece) of
+		Pawn => True
+	      | _ => False))
+      | Some _ => True
 
 fun doMove state src dest =
     case (testLegal state src dest) of
@@ -555,9 +606,16 @@ fun doMove state src dest =
 	let
 	    val requiresEnPassant = isPawnUp2Sq state.Pieces src dest
 	    val piecesnew = removeFromAddAt state.Pieces src dest
+	    val castled = isCastle state.Pieces src dest
+	    val resetCounter = isPawnMoveOrCapture state.Pieces src dest
+	    val piecesnew2 = case castled of
+			     | Some Kingside => removeFromAddAt piecesnew {X=7,Y=src.Y} {X=5,Y=src.Y}
+			     | Some Queenside => removeFromAddAt piecesnew {X=0,Y=src.Y} {X=3,Y=src.Y}
+			     | None => piecesnew
+			       
 	in
 	    Some {
-	    Pieces = piecesnew,
+	    Pieces = piecesnew2,
 	    Player = other state.Player,
 	    WK = if (state.WK) && (peq White state.Player) then
 		     if (isKingMove White state.Pieces src) || (isRookKMove White state.Pieces src) then
@@ -593,7 +651,10 @@ fun doMove state src dest =
 			      | Black => Some { X = dest.X, Y = dest.Y - 1 }
 			else
 			    None,
-	    HalfMove = state.HalfMove + 1,
+	    HalfMove = if resetCounter then
+			   0
+		       else
+			   state.HalfMove + 1,
 	    FullMove = if (peq state.Player Black) then
 			   state.FullMove + 1
 		       else
