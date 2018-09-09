@@ -42,3 +42,5 @@ val testLegal : gamestate -> square -> square -> bool
 
 val doMove : gamestate -> square -> square -> option gamestate
 					      
+val sqStr : square -> string
+		      

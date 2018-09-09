@@ -61,6 +61,41 @@ val pieces : list piecerec =
 *)
     	
 (* functions *)
+		 
+fun fileStr f =
+    case f of
+	0 => "a"
+      | 1 => "b"
+      | 2 => "c"
+      | 3 => "d"
+      | 4 => "e"
+      | 5 => "f"
+      | 6 => "g"
+      | 7 => "h"
+      | _ => "?"
+
+fun fileToI i =
+    case i of
+	#"a" => 0
+      | #"b" => 1
+      | #"c" => 2
+      | #"d" => 3
+      | #"e" => 4
+      | #"f" => 5
+      | #"g" => 6
+      | #"h" => 7
+      | _ => -1
+	
+fun validSq x y = x >= 0 && x < 8 && y >= 0 && y < 8
+						       
+(* transform list option T -> list T *) 
+fun removeNones [a] (ls : list (option a)) : list a  =
+    case ls of
+	h :: t =>
+	(case h of
+	     Some thing => thing :: removeNones t
+	   | None => removeNones t)
+      | [] => []
 
 fun other a =
     case a of
@@ -144,35 +179,80 @@ fun fenToPlayer f =
 		 
 fun fen_to_state s =
     let
-	fun parts_pieces_aux pieces player =
+	fun parts_pieces_aux pieces player wk wq bk bq enpx enpy =	
 	    {
 	     Pieces = pieces,
 	     Player = player,
-	     WK = True,
-	     WQ = True,
-	     BK = True,
-	     BQ = True,
-	     EnPassant = None,
+	     WK = wk,
+	     WQ = wq,
+	     BK = bk,
+	     BQ = bq,
+	     EnPassant = if (validSq enpx enpy) then
+			     Some {X=enpx,Y=enpy}
+			 else
+			     None,
 	     HalfMove = 0,
 	     FullMove = 1
 	    }
 
-	and fromcastling s pieces player =
-	    parts_pieces_aux pieces player
+	and fromEnPassant s pieces player wk wq bk bq enpx enpy =
+	    let
+		val l = strlen s
+	    in
+		if l = 0 then		    
+		    parts_pieces_aux pieces player wk wq bk bq enpx enpy (* trigger error ? *)
+		else
+		    let
+			val fst = (strsub s 0)
+		    in
+			case fst of			  
+			    #" " => parts_pieces_aux pieces player wk wq bk bq enpx enpy
+			  | #"-" => parts_pieces_aux pieces player wk wq bk bq enpx enpy
+			  | _ =>
+			    if (isdigit fst) then
+				case (read (show fst) : option int) of
+				    None => parts_pieces_aux pieces player wk wq bk bq enpx enpy
+				  | Some v => fromEnPassant (substring s 1 (l -1)) pieces player wk wq bk bq enpx (7 - (v - 1))
+			    else
+				fromEnPassant (substring s 1 (l -1)) pieces player wk wq bk bq (fileToI fst) enpy
+			    
+		    end
+	    end
+
+	and fromcastling s pieces player wk wq bk bq =
+	    let
+		val l = strlen s
+	    in
+		if l = 0 then		    
+		    parts_pieces_aux pieces player wk wq bk bq (-1) (-1) (* trigger error ? *)
+		else
+		    let
+			val fst = (strsub s 0)
+		    in
+			case fst of
+			    #"K" => fromcastling (substring s 1 (l -1)) pieces player True wq bk bq
+			  | #"Q" => fromcastling (substring s 1 (l -1)) pieces player wk True bk bq
+			  | #"k" => fromcastling (substring s 1 (l -1)) pieces player wk wq True bq
+			  | #"q" => fromcastling (substring s 1 (l -1)) pieces player wk wq bk True
+			  | #"-" => fromcastling (substring s 1 (l -1)) pieces player wk wq bk bq
+			  | #" " => fromEnPassant (substring s 1 (l -1)) pieces player wk wq bk bq (-1) (-1)
+			  | _ => parts_pieces_aux pieces player wk wq bk bq (-1) (-1) (* trigger error ? *)
+		    end
+	    end
 	    
 	and fromplayer s pieces =
 	    let
 		val l = strlen s
 	    in
 		if l = 0 then
-		    parts_pieces_aux pieces White (* trigger error ? *)
+		    parts_pieces_aux pieces White False False False False (-1) (-1) (* trigger error ? *)
 		else
 		    let
 			val fst = (strsub s 0)
 		    in
 			case (fenToPlayer fst) of
-			    None => parts_pieces_aux pieces White (* trigger error? *)
-			  | Some player => fromcastling (substring s 2 (l -2)) pieces player
+			    None => parts_pieces_aux pieces White False False False False (-1) (-1) (* trigger error? *)
+			  | Some player => fromcastling (substring s 2 (l -2)) pieces player False False False False
 		    end
 	    end
 	
@@ -181,7 +261,7 @@ fun fen_to_state s =
 		val l = strlen s
 	    in
 		if l = 0 then
-		    parts_pieces_aux pieces White (* trigger error ? *)
+		    parts_pieces_aux pieces White False False False False (-1) (-1) (* trigger error ? *)
 		else
 		    let
 			val fst = (strsub s 0)
@@ -193,10 +273,10 @@ fun fen_to_state s =
 			    if isdigit fst then
 				case (read (show fst) : option int) of
 				    Some i => fen_to_pieces_aux (substring s 1 (l -1)) row (col + i) pieces
-				  | None => parts_pieces_aux pieces White (* trigger error ? *)
+				  | None => parts_pieces_aux pieces White False False False False (-1) (-1) (* trigger error ? *)
 			    else
 				case (char_to_piece fst) of
-				    None => parts_pieces_aux pieces White (* trigger error? *)
+				    None => parts_pieces_aux pieces White False False False False (-1) (-1) (* trigger error? *)
 				  | Some p => fen_to_pieces_aux (substring s 1 (l - 1)) row (col + 1)
 								({X = col, Y = row, Piece= p} :: pieces)
 		    end
@@ -293,11 +373,42 @@ fun pieces_to_fen pieces =
     in
 	List.append (rank_to_fenFrag pieces 0 0 0) (pieces_to_fen_aux pieces 1)
     end
+
+fun castlingToFen state =
+    if (state.WK || state.WQ || state.BK || state.BQ) then
+	removeNones ((if state.WK then
+			  Some "K"
+		      else
+			  None) :: (if state.WQ then
+					Some "Q"
+				    else
+					None) :: (if state.BK then
+						      Some "k"
+						  else
+						      None) :: (if state.BQ then
+								    Some "q"
+								else
+								    None) :: [])
+    else
+	"-" :: []
+
+fun sqStr sq =
+    strcat (fileStr sq.X) (show (7 - sq.Y + 1))
+	
+fun enPassantToFen state =
+    case state.EnPassant of
+	None => "-" :: []
+      | Some sq => sqStr sq :: []
     
 fun state_to_fen state : string  =
-    List.foldr strcat "" (List.append (pieces_to_fen state.Pieces) (" " :: (playerToFen state.Player :: [])))
+    List.foldr strcat "" (List.append (pieces_to_fen state.Pieces)
+				      (" " :: (playerToFen state.Player ::
+							   (
+							    List.append
+								(" " :: (castlingToFen state))
+								(" " :: (enPassantToFen state))
+			 ))))
 
-fun validSq x y = x >= 0 && x < 8 && y >= 0 && y < 8
 
 datatype sqPresence = Empty | Foe | Nvm
 
@@ -328,14 +439,20 @@ fun pfoe pieces player x y =
     case (testSq pieces player x y) of
 	Foe => True
       | _ => False
-	     
+
+fun pfoeOrSq pieces player x y sqq =
+    (case sqq of
+	 Some sq => x = sq.X && y = sq.Y
+       | None => False) || pfoe pieces player x y 
+
 (* is valid sq and is empty or has a foe *)
 fun pemptyOrFoe pieces player x y =
     case (testSq pieces player x y) of
 	Empty => True
       | Foe => True
       | _ => False
-			   
+
+	     
 (* TODO en passant and promotion *)
 (* TODO remove self checks *)
 fun legalsPawn state player src =
@@ -353,12 +470,12 @@ fun legalsPawn state player src =
 		      []))
 	    
 	    (List.append 
-		 (if (pfoe state.Pieces player (src.X - 1) (src.Y - 1)) then
+		 (if (pfoeOrSq state.Pieces player (src.X - 1) (src.Y - 1) state.EnPassant) then
 		      { X=src.X - 1, Y = src.Y - 1 } :: []
 		  else
 		      [])
 		 
-		 (if (pfoe state.Pieces player (src.X + 1) (src.Y - 1)) then
+		 (if (pfoeOrSq state.Pieces player (src.X + 1) (src.Y - 1) state.EnPassant) then
 		      { X=src.X + 1,  Y = src.Y - 1 } :: []
 		  else
 		      []))
@@ -377,12 +494,12 @@ fun legalsPawn state player src =
 		      []))
 	    
 	    (List.append 
-		 (if (pfoe state.Pieces player (src.X - 1) (src.Y + 1)) then
+		 (if (pfoeOrSq state.Pieces player (src.X - 1) (src.Y + 1) state.EnPassant) then
 		      { X=src.X - 1, Y = src.Y + 1 } :: []
 		  else
 		      [])
 		 
-		 (if (pfoe state.Pieces player (src.X + 1) (src.Y + 1)) then
+		 (if (pfoeOrSq state.Pieces player (src.X + 1) (src.Y + 1) state.EnPassant) then
 		      { X=src.X + 1,  Y = src.Y + 1 } :: []
 		  else
 		      []))
@@ -403,15 +520,6 @@ fun genSlide pieces player src dX dY =
 	    {X=testX, Y=testY} :: []
 	  | Nvm => []
     end
-
-(* transform list option T -> list T *) 
-fun removeNones ls =
-    case ls of
-	h :: t =>
-	(case h of
-	     Some thing => thing :: removeNones t
-	   | None => removeNones t)
-      | [] => []
 
 (* get square if its valid for landing a piece *)
 fun offTest pieces player src dX dY =
@@ -588,6 +696,27 @@ fun isCastle pieces src dest =
 		   None
 	 | _ => None
 
+fun sqBack sq player =
+    let
+	val back = case player of
+		       White => 1
+		     | Black => -1
+    in
+	{X=sq.X,Y=sq.Y + back}
+    end
+		
+fun isEnPassantCapture enp pieces2 player dest =
+    case enp of
+	None => None
+      | Some sq =>
+	if (dest.X = sq.X && dest.Y = sq.Y) then
+	    case (pieceAt2 pieces2 dest.X dest.Y) of
+		None => None
+	      | Some p => case (piece_to_kind p.Piece) of
+			      Pawn => Some (sqBack sq player)
+			    | _ => None
+	else
+	    None
 
 fun isPawnMoveOrCapture pieces src dest =
     case (pieceAt2 pieces dest.X dest.Y) of
@@ -612,10 +741,12 @@ fun doMove state src dest =
 			     | Some Kingside => removeFromAddAt piecesnew {X=7,Y=src.Y} {X=5,Y=src.Y}
 			     | Some Queenside => removeFromAddAt piecesnew {X=0,Y=src.Y} {X=3,Y=src.Y}
 			     | None => piecesnew
-			       
+	    val piecesnew3 = case (isEnPassantCapture state.EnPassant piecesnew2 state.Player dest) of
+				 None => piecesnew2
+			       | Some sq => removePSquare2 piecesnew2 sq.X sq.Y 
 	in
 	    Some {
-	    Pieces = piecesnew2,
+	    Pieces = piecesnew3,
 	    Player = other state.Player,
 	    WK = if (state.WK) && (peq White state.Player) then
 		     if (isKingMove White state.Pieces src) || (isRookKMove White state.Pieces src) then

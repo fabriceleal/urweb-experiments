@@ -40,6 +40,7 @@ type boardstate = { Highlight: option square, Pieces: list piecerec, DragPiece: 
 	  
 
 val startingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
  
 val light = make_rgba 239 238 240 1.0
 val dark = make_rgba 119 138 181 1.0
@@ -429,7 +430,9 @@ fun postPage id () =
 			listener ()
 			    
 
-		in		    
+		in
+		    debug (sqStr {X=0,Y=0});
+		    debug (state_to_fen (fen_to_state testFen));
 		    set renderstate (Some (fen_to_board current.Position.Fen));
 		    requestAnimationFrame2 drawBoard3;
 
