@@ -431,8 +431,9 @@ fun postPage id () =
 			    
 
 		in
+		    (*
 		    debug (sqStr {X=0,Y=0});
-		    debug (state_to_fen (fen_to_state testFen));
+		    debug (state_to_fen (fen_to_state testFen)); *)
 		    set renderstate (Some (fen_to_board current.Position.Fen));
 		    requestAnimationFrame2 drawBoard3;
 
