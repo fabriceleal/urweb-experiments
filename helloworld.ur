@@ -1,7 +1,7 @@
 
 open Canvas_FFI
-
-type square = { X: int, Y : int}
+open Chess
+     
 
 datatype boardmsg =
 	 MovePiece of square * square
@@ -23,178 +23,17 @@ table position : {Id: int, PostId: int, Fen : string, PreviousPositionId: option
 
 table comment : {Id: int, PositionId: int, Content: string }
 		    PRIMARY KEY Id
-		
-datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |
-	 BlackKing | BlackQueen | BlackRook | BlackBishop | BlackKnight | BlackPawn
-	      
-type piecerec = { X: int, Y : int, Piece : piece  }
 
 type rawPoint = { RawX: int, RawY : int}
 
 type draggingPiece = { Src: rawPoint, Current: rawPoint, Piece: piece }
 	      
-type boardstate = { Highlight: option square, Pieces: list piecerec, DragPiece: option draggingPiece }
+type boardstate = { Highlight: option square, Pieces: list piecerec, DragPiece: option draggingPiece, Full : gamestate }
 	  
-fun piece_to_char p =
-    case p of
-	BlackKing => #"k"
-      | BlackQueen => #"q"
-      | BlackRook => #"r"
-      | BlackBishop => #"b"
-      | BlackKnight => #"n"
-      | BlackPawn => #"p"
-		     
-      | WhiteKing => #"K"
-      | WhiteQueen => #"Q"
-      | WhiteRook => #"R"
-      | WhiteBishop => #"B"
-      | WhiteKnight => #"N"
-      | WhitePawn => #"P"
-		     		     
-		  
-fun char_to_piece c =
-    case c of
-	#"k" => Some BlackKing
-      | #"q" => Some BlackQueen
-      | #"r" => Some BlackRook
-      | #"b" => Some BlackBishop
-      | #"n" => Some BlackKnight
-      | #"p" => Some BlackPawn
-
-      | #"K" => Some WhiteKing
-      | #"Q" => Some WhiteQueen
-      | #"R" => Some WhiteRook
-      | #"B" => Some WhiteBishop
-      | #"N" => Some WhiteKnight
-      | #"P" => Some WhitePawn
-		
-      | _ => None
-		  
-fun fen_to_pieces (s : string) : list piecerec =
-    let
-	fun fen_to_pieces_aux (s : string) row col =
-	    let
-		val l = strlen s
-	    in
-		if l = 0 then
-		    []
-		else
-		    let
-			val fst = (strsub s 0)
-		    in
-			if fst = #"/" then
-			    fen_to_pieces_aux (substring s 1 (l -1)) (row + 1) 0
-			else
-			    if isdigit fst then
-				case (read (show fst) : option int) of
-				    Some i => fen_to_pieces_aux (substring s 1 (l -1)) row (col + i)
-				  | None => [] (*trigger error ? *)
-			    else
-				case (char_to_piece fst) of
-				    None => [] (*trigger error? *)
-				  | Some p => {X = col, Y = row, Piece= p} :: (fen_to_pieces_aux (substring s 1 (l - 1)) row (col + 1))
-		    end
-	    end
-	    
-    in
-	fen_to_pieces_aux s 0 0
-    end
 
 
-fun pieceInSquare (x : int) (y : int) : (piecerec -> bool) =
-    let
-	fun tmp (pp : piecerec) =
-	    pp.X = x && pp.Y = y
-    in
-	tmp
-    end
-    
-fun pieceAt (ls : list piecerec) (f : piecerec -> bool) : option piecerec =
-    case ls of
-	h :: r =>
-	if (f h) then
-	    Some h
-	else
-	    pieceAt r f
-      | [] => None
-
-fun pieceAt2 (ls : list piecerec) (x : int) (y : int) : option piecerec =
-    case ls of
-	h :: r =>
-	if (h.X = x && h.Y = y) then
-	    Some h
-	else
-	    pieceAt2 r x y
-      | [] => None
-	      
-fun removePSquare (ls : list piecerec) (f : piecerec -> bool) : (list piecerec) =
-    case ls of
-	h :: r =>
-	if (f h) then
-	    r
-	else
-	    h :: (removePSquare r f)		       
-      | [] => []
-
-fun removePSquare2 (ls : list piecerec) x y : (list piecerec) =
-    case ls of
-	h :: r =>
-	if (h.X = x && h.Y = y) then
-	    r
-	else
-	    h :: (removePSquare2 r x y)		       
-      | [] => []
-	      
-fun removeFromAddAt (pieces : list piecerec) (sqSrc : square) (sqDest : square) =
-    let
-	val maybepiece = pieceAt2 pieces sqSrc.X sqSrc.Y
-    in
-	case maybepiece of
-	    Some piece => 
-	    { Piece=piece.Piece,X=sqDest.X, Y=sqDest.Y } :: (removePSquare2 (removePSquare2 pieces sqSrc.X sqSrc.Y) sqDest.X sqDest.Y)
-	  | None => pieces
-    end
-
-
-fun rank_to_fenFrag (pieces : list piecerec) (rank : int) (empty : int) (file : int) : list string  =
-    let
-	val p = pieceAt2 pieces file rank
-    in
-	if file = 8 then
-	    if (empty > 0) then
-		    (show empty) :: []
-		else
-		    []
-	else	    
-	    case p of
-		Some piece =>
-		(if (empty > 0) then
-		     show empty
-		 else
-		     "") :: ((show (piece_to_char piece.Piece)) :: (rank_to_fenFrag pieces rank 0 (file + 1)))
-	      | None =>	    
-		rank_to_fenFrag pieces rank (empty + 1) (file + 1)
-		
-    end
-
-fun pieces_to_fen pieces =
-    let
-	fun pieces_to_fen_aux pieces rank =
-	    if (rank = 8) then
-		[]
-	    else
-		List.append ("/" :: (rank_to_fenFrag pieces rank 0 0)) (pieces_to_fen_aux pieces (rank + 1))
-    in
-	List.append (rank_to_fenFrag pieces 0 0 0) (pieces_to_fen_aux pieces 1)
-    end
-
-fun pieces_to_fen3 (pieces : list piecerec) : string  =
-    List.foldr strcat "" (pieces_to_fen pieces)
-
-val startingFen2 = pieces_to_fen3 ({Piece=BlackKnight, X = 1, Y = 0} :: [])    
 val startingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-val startingFen3 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
-		  
+	  
 val pieces : list piecerec =
     { X= 0, Y= 0, Piece= BlackRook}  ::
 				     { X= 1, Y= 0, Piece= BlackKnight} ::
@@ -236,6 +75,17 @@ val red = make_rgba 255 0 0 1.0
 val size = 60
 val x = 10
 val y = 10
+
+
+fun state_to_board state =
+    { Highlight = None, Full = state, Pieces=state.Pieces, DragPiece = None}
+	
+fun fen_to_board fen =
+    let
+	val state = fen_to_state fen
+    in
+	state_to_board state
+    end
 	
 fun postPage id () =
     let
@@ -244,7 +94,7 @@ fun postPage id () =
 	    return r.Post.Room
 
 	and speak line =
-	    (case line of
+	    case line of
 		 MovePiece (src, dest) =>
 	     
 		 idP <- nextval positionSeq;
@@ -254,23 +104,29 @@ fun postPage id () =
 				WHERE post.Id = {[id]} );
 		 
 		 let
-		     val pieces = fen_to_pieces row.Position.Fen
-		     val manipulated = removeFromAddAt pieces src dest
-		     val newFen = pieces_to_fen3 manipulated (* row.Position.Fen *)
-		 in
-		 
-		     dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
-		     dml (INSERT INTO position (Id, PostId, Fen, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]},
-											 {[Some row.Post.CurrentPositionId]}) )
-		 end;
-		 
-		 return ()
-	       | _ => return ());
-	    room <- getRoom ();
-	    Room.send room line
+		     val state = fen_to_state row.Position.Fen	
+		 in		     
+		     case (doMove state src dest) of
+		       | None => return ()
+		       | Some manipulated =>
+			 let			     
+			     val newFen = state_to_fen manipulated
+			 in
+			     dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
+			     dml (INSERT INTO position (Id, PostId, Fen, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]},
+												 {[Some row.Post.CurrentPositionId]}) );
+		     
+			     room <- getRoom ();
+			     Room.send room line
+			 end
+		 end		 
+	       | _ =>
+		 room <- getRoom ();
+		 Room.send room line
 
 	and doSpeak line =	 
-	    rpc (speak line) 
+	    rpc (speak line)
+	    
     in
 
 	current <- oneRow (SELECT post.Nam, post.Room, position.Fen
@@ -306,6 +162,7 @@ fun postPage id () =
 				val st : boardstate = {
 				    Highlight = None, 
 				    Pieces = (removePSquare p''.Pieces f'),
+				    Full = p''.Full,
 				    DragPiece = Some {
 				    Src = { RawX = e.OffsetX,
 					    RawY = e.OffsetY
@@ -333,6 +190,7 @@ fun postPage id () =
 			     val st : boardstate = {
 				 Highlight = None,
 				 Pieces = p''.Pieces,
+				 Full = p''.Full,
 				 DragPiece = None}
 			 in
 			     set renderstate (Some st);
@@ -345,17 +203,45 @@ fun postPage id () =
 
 			     val srcX = clampToBoardCoordinateX d.Src.RawX
 			     val srcY = clampToBoardCoordinateY d.Src.RawY
-
-			     (* TODO legal move validation, handle captures *)
-			     val st : boardstate = {
-				 Highlight = None,
-				 Pieces = { Piece=d.Piece,X=sqX, Y=sqY } :: (removePSquare2 p''.Pieces sqX sqY),
-				 DragPiece = None}
+(*
+			     val legal = testLegal p''.Full {X=srcX,Y=srcY} {X=sqX,Y=sqY}
+			     val st : boardstate = 
+				 if legal then
+				     {Highlight = None,
+				      Pieces = { Piece=d.Piece,X=sqX, Y=sqY } :: (removePSquare2 p''.Pieces sqX sqY),
+				      DragPiece = None}
+				 else
+				     {Highlight = None,
+				      Pieces = full,
+				      DragPiece = None} *)
+	
 			 in
-			     set renderstate (Some st);
-			     doSpeak (MovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}));
-			     return ()
-			 end	)
+
+			     case (doMove p''.Full {X=srcX,Y=srcY} {X=sqX,Y=sqY}) of
+				 None =>
+				 let
+				     val st = {Highlight = None,
+					       Pieces = p''.Full.Pieces,
+					       Full = p''.Full,
+					       DragPiece = None}
+				 in
+				     set renderstate (Some st);
+				     doSpeak (MovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}));
+				     return ()
+				 end
+			       | Some newState =>
+				 let
+				     val st = {Highlight = None,
+					       Pieces = newState.Pieces,
+					       Full = newState,
+					       DragPiece = None}
+				 in
+				     set renderstate (Some st);
+				     doSpeak (MovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}));
+				     return ()
+				 end
+			     
+			 end)
 		  | None => return ()
 			    
 
@@ -370,6 +256,7 @@ fun postPage id () =
 			    val st : boardstate = {
 				Highlight = None,
 				Pieces = p''.Pieces,
+				Full = p''.Full,
 				DragPiece = None}
 			in
 			    set renderstate (Some st);
@@ -380,6 +267,7 @@ fun postPage id () =
 			    val st : boardstate = {
 				Highlight = None,
 				Pieces = p''.Pieces,
+				Full = p''.Full,
 				DragPiece = Some {
 				Src = d.Src,
 				Current = {
@@ -523,12 +411,18 @@ fun postPage id () =
 			    MovePiece(src, dest) =>
 			    s' <- get renderstate;
 			    (case s' of
-                              | Some s'' =>
-				set renderstate (Some {
-						 Highlight = s''.Highlight,
-						 Pieces = (removeFromAddAt s''.Pieces src dest),
-						 DragPiece = s''.DragPiece
-						})
+				 Some s'' =>
+
+				 (case (doMove s''.Full src dest) of
+				   | None => return ()
+				   | Some newState =>
+				     set renderstate (Some {
+						      Highlight = s''.Highlight,
+						      Pieces = newState.Pieces,
+						      Full = newState,
+						      DragPiece = s''.DragPiece
+						     }))
+				 
 			      | None => return ()
 			    )
 			    
@@ -539,6 +433,7 @@ fun postPage id () =
 				set renderstate (Some {
 						 Highlight = Some sq,
 						 Pieces = s''.Pieces,
+						 Full = s''.Full,
 						 DragPiece = s''.DragPiece
 						})
 			      | None => return ()
@@ -549,15 +444,8 @@ fun postPage id () =
 			listener ()
 			    
 
-		in
-		    (*
-		    (case current.Position.Fen of
-			| Some fen => 
-			  set renderstate (Some { Highlight = None, Pieces=(fen_to_pieces fen), DragPiece = None})
-			| None =>
-			  set renderstate (Some { Highlight = None, Pieces=(fen_to_pieces startingFen), DragPiece = None}));
-		     *)
-		    set renderstate (Some { Highlight = None, Pieces=(fen_to_pieces current.Position.Fen), DragPiece = None});
+		in		    
+		    set renderstate (Some (fen_to_board current.Position.Fen));
 		    requestAnimationFrame2 drawBoard3;
 
 		    listener ();
@@ -573,11 +461,6 @@ fun postPage id () =
 	    
 	    <a link={index()}>another page</a>
 
-	    <button value="Send" onclick={fn _ => doSpeak (Highlight {X=5, Y=5})} />	      
-	    <button value="click" onclick={fn _ =>
-						set renderstate (Some {Highlight = Some {X = 0, Y = 0},
-								       Pieces=pieces,
-								       DragPiece = None}) } />
             <canvas id={c} width={size * 8} height={size * 8} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
 	</canvas>
 		    </body>
