@@ -112,6 +112,17 @@ fun peq a b =
 		    | Black => True)
 
 
+fun keq a b =
+    case (a, b) of
+    | (King, King) => True
+    | (Queen, Queen) => True
+    | (Rook, Rook) => True
+    | (Bishop, Bishop) => True
+    | (Knight, Knight) => True
+    | (Pawn, Pawn) => True
+    | _ => False
+
+
 fun piece_to_kind p =
     case p of
 	BlackKing => King | WhiteKing => King
@@ -294,7 +305,7 @@ fun pieceInSquare x y =
     in
 	tmp
     end
-    
+(*  
 fun pieceAt (ls : list piecerec) (f : piecerec -> bool) : option piecerec =
     case ls of
 	h :: r =>
@@ -303,10 +314,17 @@ fun pieceAt (ls : list piecerec) (f : piecerec -> bool) : option piecerec =
 	else
 	    pieceAt r f
       | [] => None
-
+*)
+fun pieceAtKP (ls : list piecerec) kind player : option piecerec =
+    case ls of
+	h :: r =>
+	(case (peq player (piece_to_player h.Piece), (keq kind (piece_to_kind h.Piece))) of
+	    (True, True) => Some h
+	  | _ => pieceAtKP r kind player)
+      | [] => None 
+	    
+	      
 fun pieceAt2 (ls : list piecerec) (x : int) (y : int) : option piecerec =
-   (* pieceAt ls (pieceInSquare x y)
-    *)
     case ls of
 	h :: r =>
 	if (h.X = x && h.Y = y) then
@@ -647,17 +665,13 @@ fun allLegals state =
     end
 
 fun getEnemyKing (state: gamestate) : option piecerec =
-    pieceAt state.Pieces (fn e =>
-			     case (piece_to_kind e.Piece) of
-				 King => (peq (other state.Player) (piece_to_player e.Piece))
-			       | _ => False)
+    pieceAtKP state.Pieces King (other state.Player)
     
 fun isKingCapturable (state : gamestate) : bool =
-    hasDest (allLegals state) {X=0, Y=0} 
-(*    case (getEnemyKing state) of
+    case (getEnemyKing state) of
 	None => False
       | Some prec => hasDest (allLegals state) {X=prec.X, Y=prec.Y}
-    *)
+    
             
 (* test if a move is legal *)
 fun testLegal state src dest =

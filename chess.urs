@@ -29,7 +29,7 @@ val state_to_fen : gamestate -> string
 			
 
 val pieceInSquare : int -> int -> (piecerec -> bool)
-val pieceAt : list piecerec -> (piecerec -> bool) -> option piecerec
+(*val pieceAt : list piecerec -> (piecerec -> bool) -> option piecerec*)
 
 val pieceAt2 : list piecerec -> int -> int -> option piecerec
 val removePSquare : list piecerec -> (piecerec -> bool) -> list piecerec
