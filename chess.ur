@@ -473,8 +473,6 @@ fun pemptyOrFoe pieces player x y =
       | _ => False
 
 	     
-(* TODO en passant and promotion *)
-(* TODO remove self checks *)
 fun legalsPawn state player src =
     case player of
 	White =>
@@ -552,7 +550,6 @@ fun offTest pieces player src dX dY =
 	    None
     end
 	
-(* TODO remove self checks *)
 fun legalsKnight pieces player src =
     removeNones (offTest pieces player src (-1) (-2) ::
 			 offTest pieces player src (-1) (2) ::
@@ -577,10 +574,7 @@ fun playerCanCastleQ state player =
       state.WQ
     | Black =>
       state.BQ
-      
-(* TODO remove self checks *)
-(* TODO castling *)
-(* TODO track castling *)
+
 fun legalsKing state player src =
     let
 	val pieces = state.Pieces
@@ -604,7 +598,6 @@ fun legalsKing state player src =
 			     [])
     end
         
-(* TODO remove self checks *)
 fun legalsDiagonals pieces player src =
     List.append 
 	(List.append
@@ -614,8 +607,6 @@ fun legalsDiagonals pieces player src =
 	     (genSlide pieces player src (-1) 1)
 	     (genSlide pieces player src 1 1))
 
-(* TODO in case of rook, track castling *)
-(* TODO remove self checks *)
 fun legalsOrtho pieces player src =
     List.append 
 	(List.append
@@ -625,7 +616,6 @@ fun legalsOrtho pieces player src =
 	     (genSlide pieces player src (-1) 0)
 	     (genSlide pieces player src 1 0))
 
-(* TODO remove self checks *)
 fun legalsSlide pieces player src =
     List.append (legalsDiagonals pieces player src) (legalsOrtho pieces player src)
 
@@ -638,7 +628,16 @@ fun hasDest ls sq =
 	else
 	    hasDest t sq
       | [] => False
-
+	      
+fun hasDestOneOf ls lssq =
+    case lssq of
+	h :: t =>
+	if hasDest ls h then
+	    True
+	else
+	    hasDestOneOf ls t
+      | [] => False
+     
 fun legalsForPiece state piece =
     let
 	val src = {X=piece.X,Y=piece.Y}
@@ -652,7 +651,6 @@ fun legalsForPiece state piece =
 	  | King => legalsKing state (piece_to_player piece.Piece) src
     end
 
-    
 fun allLegals state =
     let
 	fun f e =
@@ -667,10 +665,20 @@ fun allLegals state =
 fun getEnemyKing (state: gamestate) : option piecerec =
     pieceAtKP state.Pieces King (other state.Player)
     
-fun isKingCapturable (state : gamestate) : bool =
+fun isKingCapturable (state : gamestate) castle src : bool =
     case (getEnemyKing state) of
 	None => False
-      | Some prec => hasDest (allLegals state) {X=prec.X, Y=prec.Y}
+      | Some prec =>
+	let
+	    val moves = (allLegals state)
+	in
+	    (case castle of
+		 None => False
+	       | Some Kingside => hasDestOneOf moves ({X=4,Y=src.Y} :: {X=5,Y=src.Y} :: {X=6,Y=src.Y} :: [])
+	       | Some Queenside => hasDestOneOf moves ({X=4,Y=src.Y} :: {X=3,Y=src.Y} :: {X=2,Y=src.Y} :: [])
+	    )
+	    || hasDest moves {X=prec.X, Y=prec.Y}
+	end
     
             
 (* test if a move is legal *)
@@ -840,7 +848,7 @@ fun doMove state src dest =
 			       state.FullMove
 	    }
 	in
-	    if (isKingCapturable newState) then
+	    if (isKingCapturable newState castled src) then
 		None
 	    else
 		Some newState
