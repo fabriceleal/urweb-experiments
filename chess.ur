@@ -305,6 +305,8 @@ fun pieceAt (ls : list piecerec) (f : piecerec -> bool) : option piecerec =
       | [] => None
 
 fun pieceAt2 (ls : list piecerec) (x : int) (y : int) : option piecerec =
+   (* pieceAt ls (pieceInSquare x y)
+    *)
     case ls of
 	h :: r =>
 	if (h.X = x && h.Y = y) then
@@ -643,20 +645,20 @@ fun allLegals state =
     in
 	List.foldl List.append [] legals
     end
-   
-fun isKingCapturable state =
-    let	
-	fun findOtherKing (p : piecerec) =
-	    case (piece_to_kind p.Piece) of
-		King =>  (peq (piece_to_player p.Piece) (other state.Player))
-	      | _ => False    		     
-    in
-	case (pieceAt state.Pieces findOtherKing) of
-	    None => False
-	  | Some k =>
-	    hasDest (allLegals state) {X=k.X, Y=k.Y}
-    end
-        
+
+fun getEnemyKing (state: gamestate) : option piecerec =
+    pieceAt state.Pieces (fn e =>
+			     case (piece_to_kind e.Piece) of
+				 King => (peq (other state.Player) (piece_to_player e.Piece))
+			       | _ => False)
+    
+fun isKingCapturable (state : gamestate) : bool =
+    hasDest (allLegals state) {X=0, Y=0} 
+(*    case (getEnemyKing state) of
+	None => False
+      | Some prec => hasDest (allLegals state) {X=prec.X, Y=prec.Y}
+    *)
+            
 (* test if a move is legal *)
 fun testLegal state src dest =
     let
