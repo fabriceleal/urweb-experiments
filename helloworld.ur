@@ -51,7 +51,7 @@ type rawPoint = { RawX: int, RawY : int}
 
 type draggingPiece = { Src: rawPoint, Current: rawPoint, Piece: piece }
 	      
-type boardstate = { Highlight: option square, Pieces: list piecerec, DragPiece: option draggingPiece, Full : gamestate }
+type boardstate = { Highlight: list square, Pieces: list piecerec, DragPiece: option draggingPiece, Full : gamestate }
 	  
 
 val startingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -60,13 +60,17 @@ val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
 val light = make_rgba 239 238 240 1.0
 val dark = make_rgba 119 138 181 1.0
 val red = make_rgba 255 0 0 1.0
+val promBg = make_rgba 244 244 244 1.0
+val promBgSel = make_rgba 211 211 211 1.0
 val size = 60
 val x = 10
 val y = 10
 
+val offProm = 2
+
 
 fun state_to_board state =
-    { Highlight = None, Full = state, Pieces=state.Pieces, DragPiece = None}
+    { Highlight = [], Full = state, Pieces=state.Pieces, DragPiece = None}
 	
 fun fen_to_board fen =
     let
@@ -172,13 +176,13 @@ fun postPage id () =
 			val f' = (pieceInSquare sqX sqY)
 			val p''' = List.find f' p''.Pieces
 		    in
-			
+			(* if we hit a square with a piece, grab that piece *)
 			case p''' of
 			    None => return ()
 			  | Some p'''' =>
 			    let		
 				val st : boardstate = {
-				    Highlight = None, 
+				    Highlight = [], 
 				    Pieces = (removePSquare p''.Pieces f'),
 				    Full = p''.Full,
 				    DragPiece = Some {
@@ -203,17 +207,7 @@ fun postPage id () =
 		case p' of
 		    Some p'' =>
 		    (case p''.DragPiece of
-			 None => 		
-			 let
-			     val st : boardstate = {
-				 Highlight = None,
-				 Pieces = p''.Pieces,
-				 Full = p''.Full,
-				 DragPiece = None}
-			 in
-			     set renderstate (Some st);
-			     return ()
-			 end
+			 None => return ()
 		       | Some d =>
 			 let
 			     val sqX = clampToBoardCoordinateX e.OffsetX
@@ -221,13 +215,13 @@ fun postPage id () =
 
 			     val srcX = clampToBoardCoordinateX d.Src.RawX
 			     val srcY = clampToBoardCoordinateY d.Src.RawY
-	
-			 in
 
+			 in
+			     
 			     case (doMove p''.Full {Src={X=srcX,Y=srcY}, Dest = {X=sqX,Y=sqY}, Prom=None}) of
 				 None =>
 				 let
-				     val st = {Highlight = None,
+				     val st = {Highlight = p''.Highlight,
 					       Pieces = p''.Full.Pieces,
 					       Full = p''.Full,
 					       DragPiece = None}
@@ -237,7 +231,7 @@ fun postPage id () =
 				 end
 			       | Some newState =>
 				 let
-				     val st = {Highlight = None,
+				     val st = {Highlight = [],
 					       Pieces = newState.Pieces,
 					       Full = newState,
 					       DragPiece = None}
@@ -257,21 +251,11 @@ fun postPage id () =
 		    None => return ()
 		  | Some p'' =>
 		    case p''.DragPiece of
-			None =>
-			let
-			    val st : boardstate = {
-				Highlight = None,
-				Pieces = p''.Pieces,
-				Full = p''.Full,
-				DragPiece = None}
-			in
-			    set renderstate (Some st);
-			    return ()
-			end
+			None => return ()			
 		      | Some d => 		    
 			let
 			    val st : boardstate = {
-				Highlight = None,
+				Highlight = p''.Highlight,
 				Pieces = p''.Pieces,
 				Full = p''.Full,
 				DragPiece = Some {
@@ -323,6 +307,10 @@ fun postPage id () =
 			fillRect ctx (size * 4 + size) (row * size) size size;
 			fillRect ctx (size * 6 + size) (row * size) size size
 
+		    and paint_prom_sq ctx row piece =
+			fillRect ctx (size * 8 + offProm) (row * size) size size;
+			draw_piece_dl ctx piece (float (size * 8 + offProm)) (float (row * size))
+
 		    and piece_to_id piece =
 			case piece of
 			    WhiteKing => wk
@@ -338,8 +326,12 @@ fun postPage id () =
 			  | BlackKnight => bn
 			  | BlackPawn => bp
 
+		    and draw_piece_dl ctx piece x y =
+			drawImage2 ctx (piece_to_id piece) x y (float size) (float size)
+					 
 		    and draw_piece ctx (p : piecerec) =		    
-			drawImage2 ctx (piece_to_id p.Piece) (float (size * p.X)) (float (size * p.Y)) (float size) (float size)
+		    (*	drawImage2 ctx (piece_to_id p.Piece) (float (size * p.X)) (float (size * p.Y)) (float size) (float size) *)
+			draw_piece_dl ctx p.Piece (float (size * p.X)) (float (size * p.Y))
 			
 		    and draw_pieces ctx ps =
 			case ps of
@@ -364,48 +356,65 @@ fun postPage id () =
 			    drawImage2 ctx (piece_to_id pd'.Piece) (float(pd'.Current.RawX) - (float(size) / 2.0)) (float(pd'.Current.RawY) - (float(size) / 2.0)) (float size) (float size)
 			  | _ => return ()
 				 
-		    and drawBoard ctx hs ps pd =
-			
-			setFillStyle ctx light;
-			paint_row0 ctx 0;
-			paint_row1 ctx 1;
-			paint_row0 ctx 2;
-			paint_row1 ctx 3;
-			paint_row0 ctx 4;
-			paint_row1 ctx 5;
-			paint_row0 ctx 6;
-			paint_row1 ctx 7;
-			
-			setFillStyle ctx dark;
-			paint_row1 ctx 0;
-			paint_row0 ctx 1;
-			paint_row1 ctx 2;
-			paint_row0 ctx 3;
-			paint_row1 ctx 4;
-			paint_row0 ctx 5;
-			paint_row1 ctx 6;
-			paint_row0 ctx 7;
+		    and drawBoard ctx x =
+			let
+			    val hs = x.Highlight
+			    val ps = x.Pieces
+			    val pd = x.DragPiece
+			in			    
+			    setFillStyle ctx light;
+			    paint_row0 ctx 0;
+			    paint_row1 ctx 1;
+			    paint_row0 ctx 2;
+			    paint_row1 ctx 3;
+			    paint_row0 ctx 4;
+			    paint_row1 ctx 5;
+			    paint_row0 ctx 6;
+			    paint_row1 ctx 7;
+			    
+			    setFillStyle ctx dark;
+			    paint_row1 ctx 0;
+			    paint_row0 ctx 1;
+			    paint_row1 ctx 2;
+			    paint_row0 ctx 3;
+			    paint_row1 ctx 4;
+			    paint_row0 ctx 5;
+			    paint_row1 ctx 6;
+			    paint_row0 ctx 7;
 
-			setFillStyle ctx red;
-			drawHighlights ctx hs;
+			    setFillStyle ctx promBg;
 
-			draw_pieces ctx ps;
+			    paint_prom_sq ctx 0 WhiteQueen;
+			    paint_prom_sq ctx 1 WhiteRook;
+			    paint_prom_sq ctx 2 WhiteBishop;
+			    paint_prom_sq ctx 3 WhiteKnight;
+			    
+			    paint_prom_sq ctx 4 BlackKnight;
+			    paint_prom_sq ctx 5 BlackBishop;
+			    paint_prom_sq ctx 6 BlackRook;
+			    paint_prom_sq ctx 7 BlackQueen;
 
-			draw_piecedrag ctx pd;
-			
-			return ()
+			    (* TODO otherwise just clear this section? *)
+
+			    setFillStyle ctx red;
+			    drawHighlights ctx hs;
+
+			    draw_pieces ctx ps;
+
+			    draw_piecedrag ctx pd;
+			    
+			    return ()
+			end
 
 		    (* TODO arrows *)
-		    and drawBoard2 ctx hs ps db =
-			drawBoard ctx hs ps db
+		    and drawBoard2 ctx x =
+			drawBoard ctx x
 
 		    and drawBoard3 () =
 			x2 <- get renderstate;
 			case x2 of
 			    Some x => 
-			    drawBoard2 ctx (case x.Highlight of
-						Some t => t :: []
-					      | _ => []) x.Pieces x.DragPiece
+			    drawBoard2 ctx x
 			  | _ => return ()
 
 		    and drawBoard4 () =
@@ -419,7 +428,7 @@ fun postPage id () =
 			    case s' of
 			      | Some s'' =>
 				set renderstate (Some {
-						 Highlight = Some sq,
+						 Highlight = sq :: [],
 						 Pieces = s''.Pieces,
 						 Full = s''.Full,
 						 DragPiece = s''.DragPiece
@@ -430,7 +439,7 @@ fun postPage id () =
 			    case s' of
 			      | Some s'' =>
 				set renderstate (Some {
-						 Highlight = None,
+						 Highlight = [],
 						 Pieces = p.State.Pieces,
 						 Full = p.State,
 						 DragPiece = None
@@ -468,7 +477,7 @@ fun postPage id () =
 	    <button value="Back" onclick={fn _ => doSpeak SBack } />
 	    <button value="Fw" onclick={fn _ => doSpeak SForward } />
 	    
-            <canvas id={c} width={size * 8} height={size * 8} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
+            <canvas id={c} width={size * 9 + offProm} height={size * 8} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
 	</canvas>
 		    </body>
 	    </xml>
