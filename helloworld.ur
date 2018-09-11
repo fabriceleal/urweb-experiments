@@ -32,6 +32,21 @@ table position : {Id: int, PostId: int, Fen : string, PreviousPositionId: option
 table comment : {Id: int, PositionId: int, Content: string }
 		    PRIMARY KEY Id
 
+type userId = int
+	      
+table user: {Id: userId, Nam: string, Pass: string}
+		PRIMARY KEY Id
+
+cookie login : {Id: userId, Pass: string}
+
+fun currUser () =
+    ro <- getCookie login;
+    case ro of
+	None => return None
+      | Some r =>
+	row <- oneRow (SELECT user.Id, user.Nam FROM user WHERE user.Id = {[r.Id]} AND user.Pass = {[r.Pass]});
+	return (Some row.User)
+	       
 type rawPoint = { RawX: int, RawY : int}
 
 type draggingPiece = { Src: rawPoint, Current: rawPoint, Piece: piece }
@@ -468,12 +483,37 @@ and index () = return <xml>
     <a link={allPosts  ()}>all posts</a>
     <a link={main () }>new page</a></body></xml>
 
+and logon r =
+    ro <- oneOrNoRows (SELECT user.Id FROM user WHERE user.Nam = {[r.Nam]} AND user.Pass = {[r.Pass]});
+    case ro of
+	None => error <xml>Wrong user or pass!</xml>
+      | Some r' =>
+	setCookie login {Value = {Id=r'.User.Id, Pass =r.Pass}, Secure=False, Expires = None};
+	main ()
+
 and main () =
-    return <xml>
-      <body>
-      <h1>bla bla main!</h1>
-      </body>
-      </xml>
+    u <- currUser ();
+    return (case u of
+	       None =>
+	       <xml>
+		 <body>
+		   <form>
+		     <table>
+		       <tr><th>Name</th><td><textbox{#Nam}/></td></tr>
+		       <tr><th>Password:</th><td><textbox{#Pass}/></td></tr>
+		       <tr><td><submit action={logon}/></td></tr>
+		       <tr></tr>
+		     </table>
+		   </form>
+		 </body>
+	       </xml>
+	     | Some u => 
+	       <xml>
+		 <body>
+		   <h1>Welcome to the turtle corner! {[u.Nam]}</h1>
+		   <a link={index ()}>index</a>
+		 </body>
+	       </xml>)
 
 and allPosts () = 
   rows <- queryX (SELECT * FROM post)
@@ -518,4 +558,5 @@ and addPost newPost =
     dml (INSERT INTO position (Id, PostId, Fen, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]}, {[None]} ));
     
     redirect (bless "/Helloworld/allPosts")
+
     
