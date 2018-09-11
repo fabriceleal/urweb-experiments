@@ -42,8 +42,8 @@ val removePSquare2 : list piecerec -> int -> int -> list piecerec
 							   
 val removeFromAddAt : list piecerec -> square -> square -> list piecerec
 	      
-val testLegal : gamestate -> square -> square -> bool						   
+val testLegal : gamestate -> move -> bool						   
 
-val doMove : gamestate -> square -> square -> option gamestate
+val doMove : gamestate -> move -> option gamestate
 					      
 

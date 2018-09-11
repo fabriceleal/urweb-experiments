@@ -9,7 +9,7 @@ datatype boardmsg =
        | Position of position
 
 datatype serverboardmsg =
-	 SMovePiece of square * square
+	 SMovePiece of square * square * option kind
        | SHighlight of square
        | SBack 
        | SForward 
@@ -83,7 +83,7 @@ fun postPage id () =
 
 	and speak line =
 	    case line of
-		SMovePiece (src, dest) =>
+		SMovePiece (src, dest, kind) =>
 
 		(* TODO check if move was already played *)
 		
@@ -96,7 +96,7 @@ fun postPage id () =
 		let
 		    val state = fen_to_state row.Position.Fen	
 		in		     
-		    case (doMove state src dest) of
+		    case (doMove state {Src=src, Dest=dest, Prom = kind}) of
 		   | None => return ()
 		   | Some manipulated =>
 		     let			     
@@ -224,7 +224,7 @@ fun postPage id () =
 	
 			 in
 
-			     case (doMove p''.Full {X=srcX,Y=srcY} {X=sqX,Y=sqY}) of
+			     case (doMove p''.Full {Src={X=srcX,Y=srcY}, Dest = {X=sqX,Y=sqY}, Prom=None}) of
 				 None =>
 				 let
 				     val st = {Highlight = None,
@@ -233,7 +233,6 @@ fun postPage id () =
 					       DragPiece = None}
 				 in
 				     set renderstate (Some st);
-				     doSpeak (SMovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}));
 				     return ()
 				 end
 			       | Some newState =>
@@ -244,7 +243,7 @@ fun postPage id () =
 					       DragPiece = None}
 				 in
 				     set renderstate (Some st);
-				     doSpeak (SMovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}));
+				     doSpeak (SMovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}, None));
 				     return ()
 				 end
 			     

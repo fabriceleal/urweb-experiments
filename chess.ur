@@ -142,6 +142,23 @@ fun piece_to_player p =
       | BlackBishop => Black | WhiteBishop => White
       | BlackKnight => Black | WhiteKnight => White
       | BlackPawn => Black | WhitePawn => White
+
+fun mkPiece k p =
+    case p of
+     White => (case k of
+		   King => WhiteKing
+		 | Queen => WhiteQueen
+		 | Rook => WhiteRook
+		 | Bishop => WhiteBishop
+		 | Knight => WhiteKnight
+		 | Pawn => WhitePawn)
+   | Black => (case k of
+		   King => BlackKing
+		 | Queen => BlackQueen
+		 | Rook => BlackRook
+		 | Bishop => BlackBishop
+		 | Knight => BlackKnight
+		 | Pawn => BlackPawn)
 					 
 fun piece_to_char p =
     case p of
@@ -694,18 +711,43 @@ fun isKingCapturable (state : gamestate) castle src : bool =
 	    )
 	    || hasDest moves {X=prec.X, Y=prec.Y}
 	end
-    
-            
-(* test if a move is legal *)
-fun testLegal state src dest =
+
+	
+fun validForProm k =
+    case k of
+	Queen => True
+      | Rook => True
+      | Bishop => True
+      | Knight => True
+      | _ => False  
+		  
+fun requiresPromotion (piece : piecerec) (dest : square) =
+    case (piece_to_kind piece.Piece) of
+	Pawn =>
+	(case (piece_to_player piece.Piece) of
+	     White => dest.Y = 0
+	   | Black => dest.Y = 7)
+      | _ => False
+
+(* a move as correct promotion info if <there's no promotion specified and move doesnt require it> OR <there's a kind, 
+that kind is an available kind for promotion and the move requires promotion>  *)
+fun promOk piece move =
+    case move.Prom of
+	None => not (requiresPromotion piece move.Dest)
+      | Some k => (requiresPromotion piece move.Dest) && (validForProm k)
+
+(* test if a move is pseudo-legal *)
+(* a move is pseudo-legal if it obeys to piece move rules. not putting/leaving the own king in check is checked afterwards *)
+(* check here if promotion is correctly given as well *)
+fun testLegal state move  =
     let
 	val pieces = state.Pieces
-	val maybepiece = pieceAt2 pieces src.X src.Y
+	val maybepiece = pieceAt2 pieces move.Src.X move.Src.Y
     in
 	case maybepiece of
 	    Some piece =>
 	    if (peq (piece_to_player piece.Piece) state.Player) then
-		hasDest (legalsForPiece state piece) dest
+		hasDest (legalsForPiece state piece) move.Dest && promOk piece move
 	    else
 		False
 	  | None => False
@@ -801,40 +843,32 @@ fun isPawnMoveOrCapture pieces src dest =
 	      | _ => False))
       | Some _ => True
 
-fun validForProm k =
-    case k of
-	Queen => True
-      | Rook => True
-      | Bishop => True
-      | Knight => True
-      | _ => False
-		  
-		  
-fun requiresPromotion (piece : piecerec) (dest : square) =
-    case (piece_to_kind piece.Piece) of
-	Pawn =>
-	(case (piece_to_player piece.Piece) of
-	     White => dest.Y = 0
-	   | Black => dest.Y = 7)
-      | _ => False
-
-fun doMove state src dest =
-    case (testLegal state src dest) of
+fun doMove state move =
+    case (testLegal state move) of
 	True =>
 	let
+	    val src = move.Src
+	    val dest = move.Dest
 	    val requiresEnPassant = isPawnUp2Sq state.Pieces src dest
 	    val piecesnew = removeFromAddAt state.Pieces src dest
 	    val castled = isCastle state.Pieces src dest
 	    val resetCounter = isPawnMoveOrCapture state.Pieces src dest
+	    (* handle castling, rooks move places *)
 	    val piecesnew2 = case castled of
 			     | Some Kingside => removeFromAddAt piecesnew {X=7,Y=src.Y} {X=5,Y=src.Y}
 			     | Some Queenside => removeFromAddAt piecesnew {X=0,Y=src.Y} {X=3,Y=src.Y}
 			     | None => piecesnew
+	    (* handle en passant, pawn disapper*)
 	    val piecesnew3 = case (isEnPassantCapture state.EnPassant piecesnew2 state.Player dest) of
 				 None => piecesnew2
 			       | Some sq => removePSquare2 piecesnew2 sq.X sq.Y
+	    (* handle promotion, pawns morphing into pieces *)
+	    val piecesnew4 = case move.Prom of
+				 None => piecesnew3
+			       | Some k =>
+				 {Piece=(mkPiece k state.Player),X=dest.X,Y=dest.Y} :: removePSquare2 piecesnew3 dest.X dest.Y
 	    val newState = {
-		Pieces = piecesnew3,
+		Pieces = piecesnew4,
 		Player = other state.Player,
 		WK = if (state.WK) && (peq White state.Player) then
 			 if (isKingMove White state.Pieces src) || (isRookKMove White state.Pieces src) then
