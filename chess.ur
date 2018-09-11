@@ -12,6 +12,8 @@ type piecerec = { X: int, Y : int, Piece : piece  }
 
 type square = { X: int, Y : int}
 
+type move = { Src: square, Dest: square, Prom: option kind}
+	      
 type gamestate = {
      Pieces : list piecerec,
      Player : player,
@@ -156,7 +158,15 @@ fun piece_to_char p =
       | WhiteBishop => #"B"
       | WhiteKnight => #"N"
       | WhitePawn => #"P"
-		     		     
+
+fun kind_to_str p =
+    case p of
+	King => "k"
+      | Queen => "q"
+      | Rook => "r"
+      | Bishop => "b"
+      | Knight => "n"
+      | Pawn => "p"
 		  
 fun char_to_piece c =
     case c of
@@ -414,7 +424,12 @@ fun castlingToFen state =
 
 fun sqStr sq =
     strcat (fileStr sq.X) (show (7 - sq.Y + 1))
-	
+
+fun moveStr (mov : move) =
+    (sqStr mov.Src) ^ (sqStr mov.Dest) ^ (case mov.Prom of
+						    Some k => kind_to_str k
+						  | None => "")
+    
 fun enPassantToFen state =
     case state.EnPassant of
 	None => "-" :: []
@@ -785,6 +800,23 @@ fun isPawnMoveOrCapture pieces src dest =
 		Pawn => True
 	      | _ => False))
       | Some _ => True
+
+fun validForProm k =
+    case k of
+	Queen => True
+      | Rook => True
+      | Bishop => True
+      | Knight => True
+      | _ => False
+		  
+		  
+fun requiresPromotion (piece : piecerec) (dest : square) =
+    case (piece_to_kind piece.Piece) of
+	Pawn =>
+	(case (piece_to_player piece.Piece) of
+	     White => dest.Y = 0
+	   | Black => dest.Y = 7)
+      | _ => False
 
 fun doMove state src dest =
     case (testLegal state src dest) of

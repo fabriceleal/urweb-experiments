@@ -1,11 +1,15 @@
 
 datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |
 	 BlackKing | BlackQueen | BlackRook | BlackBishop | BlackKnight | BlackPawn
-	   
+
+datatype kind = King | Queen | Rook | Bishop | Knight | Pawn
+
 type piecerec = { X: int, Y : int, Piece : piece  }
 
 type square = { X: int, Y : int}
-
+	      
+type move = { Src: square, Dest: square, Prom: option kind}
+	      
 datatype player = White | Black
 
 type gamestate = {
