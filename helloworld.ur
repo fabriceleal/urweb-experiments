@@ -155,6 +155,8 @@ fun postPage id () =
 			   FROM post JOIN position ON post.CurrentPositionId = position.Id (* post.Id = position.PostId *)
 			   WHERE post.Id = {[id]});
 	renderstate <- source None;
+	mousestate <- source {RawX=0,RawY=0};
+	
 	ch <- Room.subscribe current.Post.Room;
 	c <- fresh;
 	
@@ -165,6 +167,9 @@ fun postPage id () =
 
 	    and clampToBoardCoordinateY rawY =
 		trunc (float(rawY) / float(size))
+
+	    and insideQuad rawX rawY srcX srcY size =
+		rawX >= srcX && rawX <= (srcX + size) && rawY >= srcY && rawY <= (srcY + size)
 			  
 	    and mousedown e =
 		p' <- get renderstate;
@@ -247,7 +252,7 @@ fun postPage id () =
 
 	    and mousemove e =
 		p' <- get renderstate;
-		case p' of
+		(case p' of
 		    None => return ()
 		  | Some p'' =>
 		    case p''.DragPiece of
@@ -269,7 +274,8 @@ fun postPage id () =
 			in
 			    set renderstate (Some st);
 			    return ()
-			end
+			end);
+		set mousestate {RawX = e.OffsetX, RawY = e.OffsetY}
 			
 	    and loadPage () =
 		
@@ -307,7 +313,11 @@ fun postPage id () =
 			fillRect ctx (size * 4 + size) (row * size) size size;
 			fillRect ctx (size * 6 + size) (row * size) size size
 
-		    and paint_prom_sq ctx row piece =
+		    and paint_prom_sq ctx row piece ms =
+			(if (insideQuad ms.RawX ms.RawY (size * 8 + offProm) (row * size) size) then			    
+			    setFillStyle ctx promBgSel
+			else
+			    setFillStyle ctx promBg); 
 			fillRect ctx (size * 8 + offProm) (row * size) size size;
 			draw_piece_dl ctx piece (float (size * 8 + offProm)) (float (row * size))
 
@@ -356,7 +366,7 @@ fun postPage id () =
 			    drawImage2 ctx (piece_to_id pd'.Piece) (float(pd'.Current.RawX) - (float(size) / 2.0)) (float(pd'.Current.RawY) - (float(size) / 2.0)) (float size) (float size)
 			  | _ => return ()
 				 
-		    and drawBoard ctx x =
+		    and drawBoard ctx x x' =
 			let
 			    val hs = x.Highlight
 			    val ps = x.Pieces
@@ -382,17 +392,16 @@ fun postPage id () =
 			    paint_row1 ctx 6;
 			    paint_row0 ctx 7;
 
-			    setFillStyle ctx promBg;
-
-			    paint_prom_sq ctx 0 WhiteQueen;
-			    paint_prom_sq ctx 1 WhiteRook;
-			    paint_prom_sq ctx 2 WhiteBishop;
-			    paint_prom_sq ctx 3 WhiteKnight;
 			    
-			    paint_prom_sq ctx 4 BlackKnight;
-			    paint_prom_sq ctx 5 BlackBishop;
-			    paint_prom_sq ctx 6 BlackRook;
-			    paint_prom_sq ctx 7 BlackQueen;
+			    paint_prom_sq ctx 0 WhiteQueen x';
+			    paint_prom_sq ctx 1 WhiteRook x';
+			    paint_prom_sq ctx 2 WhiteBishop x';
+			    paint_prom_sq ctx 3 WhiteKnight x';
+			    
+			    paint_prom_sq ctx 4 BlackKnight x';
+			    paint_prom_sq ctx 5 BlackBishop x';
+			    paint_prom_sq ctx 6 BlackRook x';
+			    paint_prom_sq ctx 7 BlackQueen x';
 
 			    (* TODO otherwise just clear this section? *)
 
@@ -407,14 +416,15 @@ fun postPage id () =
 			end
 
 		    (* TODO arrows *)
-		    and drawBoard2 ctx x =
-			drawBoard ctx x
+		    and drawBoard2 ctx x x'=
+			drawBoard ctx x x'
 
 		    and drawBoard3 () =
 			x2 <- get renderstate;
-			case x2 of
+			x3 <- get mousestate;
+			case x2  of
 			    Some x => 
-			    drawBoard2 ctx x
+			    drawBoard2 ctx x x3
 			  | _ => return ()
 
 		    and drawBoard4 () =
