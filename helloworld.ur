@@ -19,11 +19,12 @@ structure Room = Sharedboard.Make(struct
 				      type t = boardmsg
 				  end)
 
+		 
 sequence postSeq
 sequence positionSeq
 sequence commentSeq
 
-table post : { Id : int, Nam : string, CurrentPositionId : int, Room : Room.topic }
+table post : { Id : int, Nam : string, RootPositionId: int, CurrentPositionId : int, Room : Room.topic }
 		 PRIMARY KEY Id
 	     
 table position : {Id: int, PostId: int, Fen : string, Move: option string, PreviousPositionId: option int }
@@ -32,6 +33,12 @@ table position : {Id: int, PostId: int, Fen : string, Move: option string, Previ
 table comment : {Id: int, PositionId: int, Content: string }
 		    PRIMARY KEY Id
 
+open Pgn.Make(struct
+		  con id = #Id
+		  con parent = #PreviousPositionId
+		  val tab = position
+	      end)
+		
 type userId = int
 	      
 table user: {Id: userId, Nam: string, Pass: string}
@@ -90,6 +97,11 @@ fun postPage id () =
 	    r <- oneRow (SELECT post.Room FROM post WHERE post.Id = {[id]});
 	    return r.Post.Room
 
+	and moveCell r =
+	    <xml>
+	      {[r.Move]}
+	    </xml>
+	    
 	and speak line =
 	    case line of
 		SMovePiece (src, dest, kind) =>
@@ -157,9 +169,12 @@ fun postPage id () =
 	    
     in
 
-	current <- oneRow (SELECT post.Nam, post.Room, position.Fen
+	current <- oneRow (SELECT post.Nam, post.Room, post.RootPositionId, position.Fen
 			   FROM post JOIN position ON post.CurrentPositionId = position.Id (* post.Id = position.PostId *)
 			   WHERE post.Id = {[id]});
+
+	xmlMoves <- tree moveCell (Some current.Post.RootPositionId);
+	     
 	renderstate <- source None;
 	mousestate <- source {RawX=0,RawY=0};
 	
@@ -574,6 +589,8 @@ fun postPage id () =
 	    
             <canvas id={c} width={canvasW} height={canvasH} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
 	</canvas>
+
+	{xmlMoves}
 		    </body>
 	    </xml>
     end
@@ -643,8 +660,7 @@ and allPosts () =
 and createPost () = return <xml>
   <body>
     <form>
-      <table>
-	
+      <table>	
 	<tr><th>Name:</th><td><textbox{#Nam}/></td></tr>
 	<tr><th/><td><submit action={addPost} value="Create" /></td></tr>
       </table>
@@ -657,7 +673,7 @@ and addPost newPost =
     idP <- nextval positionSeq;
     sharedboard <- Room.create;
     
-    dml (INSERT INTO post (Id, Nam, CurrentPositionId, Room) VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[sharedboard]}));
+    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room) VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}));
     dml (INSERT INTO position (Id, PostId, Fen, Move, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]}, {[None]}, {[None]} ));
     
     redirect (bless "/Helloworld/allPosts")
