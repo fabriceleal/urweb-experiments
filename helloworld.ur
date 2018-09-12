@@ -26,7 +26,7 @@ sequence commentSeq
 table post : { Id : int, Nam : string, CurrentPositionId : int, Room : Room.topic }
 		 PRIMARY KEY Id
 	     
-table position : {Id: int, PostId: int, Fen : string, PreviousPositionId: option int }
+table position : {Id: int, PostId: int, Fen : string, Move: option string, PreviousPositionId: option int }
 		     PRIMARY KEY Id
 
 table comment : {Id: int, PositionId: int, Content: string }
@@ -103,18 +103,19 @@ fun postPage id () =
 			       WHERE post.Id = {[id]} );
 		
 		let
-		    val state = fen_to_state row.Position.Fen	
+		    val state = fen_to_state row.Position.Fen
+		    val move = {Src=src, Dest=dest, Prom = kind}
 		in		     
-		    case (doMove state {Src=src, Dest=dest, Prom = kind}) of
+		    case (doMove state move) of
 		   | None => return ()
 		   | Some manipulated =>
 		     let			     
 			 val newFen = state_to_fen manipulated
+			 val newMove = moveStr move
 		     in
 			 
 			 dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
-			 dml (INSERT INTO position (Id, PostId, Fen, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]},
-											     {[Some row.Post.CurrentPositionId]}) );
+			 dml (INSERT INTO position (Id, PostId, Fen, Move, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]}, {[Some newMove]}, {[Some row.Post.CurrentPositionId]}) );
 			 
 			 room <- getRoom ();
 			 
@@ -657,7 +658,7 @@ and addPost newPost =
     sharedboard <- Room.create;
     
     dml (INSERT INTO post (Id, Nam, CurrentPositionId, Room) VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[sharedboard]}));
-    dml (INSERT INTO position (Id, PostId, Fen, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]}, {[None]} ));
+    dml (INSERT INTO position (Id, PostId, Fen, Move, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]}, {[None]}, {[None]} ));
     
     redirect (bless "/Helloworld/allPosts")
 

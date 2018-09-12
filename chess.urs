@@ -47,6 +47,8 @@ val testLegal : gamestate -> move -> bool
 val doMove : gamestate -> move -> option gamestate
 					      
 val kind_to_str : kind -> string
+
+val moveStr : move -> string
 			  
 val requiresPromotionSq : list piecerec -> int -> int -> int -> int -> bool
 
