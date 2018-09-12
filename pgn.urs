@@ -20,4 +20,3 @@ functor Make(M : sig
                -> transaction xbody
 
 end
-

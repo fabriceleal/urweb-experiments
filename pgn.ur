@@ -1,3 +1,5 @@
+
+
 functor Make(M : sig
                  type key
                  con id :: Name
@@ -21,14 +23,15 @@ functor Make(M : sig
                         (fn r =>
                             children <- recurse (Some r.Tab.id);
                             return <xml>
-                              <li> {f r.Tab}</li>
+                              <span> {f r.Tab}</span>
                               
-                              <ul>
+                              <span>
                                 {children}
-                              </ul>
+                              </span>
                             </xml>)
         in
             recurse root
         end
 
 end
+

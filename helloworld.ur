@@ -80,6 +80,22 @@ val canvasH = size * 8
 
 
 
+datatype pgnTree =
+	 Node of string * list pgnTree
+	 
+datatype pgnRoot =
+	 Root of list pgnTree
+
+		 (*
+fun tree2 (root : option int) =
+    queryX' (SELECT * FROM position WHERE {eqNullable' (SQL position.PreviousPositionId) root})
+            (fn r =>
+                children <- tree2 (Some r.Position.Id);
+                return <xml>
+		  <dyn signal={return <xml><b>{[r.Position.Move]}</b>{children}</xml>} />
+		  </xml>)
+    *)
+    
 
 fun state_to_board state =
     { Highlight = [], Full = state, Pieces=state.Pieces, DragPiece = None, Prom = None}
@@ -98,9 +114,7 @@ fun postPage id () =
 	    return r.Post.Room
 
 	and moveCell r =
-	    <xml>
-	      {[r.Move]}
-	    </xml>
+	    <xml>{[r.Move]}</xml>
 	    
 	and speak line =
 	    case line of
@@ -174,7 +188,8 @@ fun postPage id () =
 			   WHERE post.Id = {[id]});
 
 	xmlMoves <- tree moveCell (Some current.Post.RootPositionId);
-	     
+(*	moveTree <- tree2 (Some current.Post.RootPositionId);*)
+
 	renderstate <- source None;
 	mousestate <- source {RawX=0,RawY=0};
 	
@@ -590,7 +605,9 @@ fun postPage id () =
             <canvas id={c} width={canvasW} height={canvasH} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
 	</canvas>
 
-	{xmlMoves}
+			    {xmlMoves} 
+(*			    {moveTree} *)
+	
 		    </body>
 	    </xml>
     end
