@@ -50,9 +50,11 @@ fun currUser () =
 type rawPoint = { RawX: int, RawY : int}
 
 type draggingPiece = { Src: rawPoint, Current: rawPoint, Piece: piece }
+
+type promstate = { Src: square, Dest: square }
 	      
-type boardstate = { Highlight: list square, Pieces: list piecerec, DragPiece: option draggingPiece, Full : gamestate }
-	  
+type boardstate = { Highlight: list square, Pieces: list piecerec, DragPiece: option draggingPiece,
+		    Full : gamestate, Prom: option promstate  }
 
 val startingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
@@ -65,12 +67,15 @@ val promBgSel = make_rgba 211 211 211 1.0
 val size = 60
 val x = 10
 val y = 10
-
 val offProm = 2
+val canvasW = size * 9 + offProm
+val canvasH = size * 8
+
+
 
 
 fun state_to_board state =
-    { Highlight = [], Full = state, Pieces=state.Pieces, DragPiece = None}
+    { Highlight = [], Full = state, Pieces=state.Pieces, DragPiece = None, Prom = None}
 	
 fun fen_to_board fen =
     let
@@ -167,6 +172,24 @@ fun postPage id () =
 
 	    and clampToBoardCoordinateY rawY =
 		trunc (float(rawY) / float(size))
+		
+	    and yPromToKind y =
+		case y of
+		    0 => Some Queen
+		  | 7 => Some Queen
+		  | 1 => Some Rook
+		  | 6 => Some Rook
+		  | 2 => Some Bishop
+		  | 5 => Some Bishop
+		  | 3 => Some Knight
+		  | 4 => Some Knight
+		  | _ => None
+			 
+	    and clampToPromSq rawX rawY =
+		if rawX >= (size * 8) + offProm && rawX <= (size * 9) + offProm then		    
+		    yPromToKind (clampToBoardCoordinateY rawY)
+		else
+		    None
 
 	    and insideQuad rawX rawY srcX srcY size =
 		rawX >= srcX && rawX <= (srcX + size) && rawY >= srcY && rawY <= (srcY + size)
@@ -179,12 +202,12 @@ fun postPage id () =
 			val sqX = clampToBoardCoordinateX e.OffsetX
 			val sqY = clampToBoardCoordinateY e.OffsetY
 			val f' = (pieceInSquare sqX sqY)
-			val p''' = List.find f' p''.Pieces
+			val maybepiecer = List.find f' p''.Pieces
 		    in
 			(* if we hit a square with a piece, grab that piece *)
-			case p''' of
+			case maybepiecer of
 			    None => return ()
-			  | Some p'''' =>
+			  | Some piecer =>
 			    let		
 				val st : boardstate = {
 				    Highlight = [], 
@@ -197,22 +220,58 @@ fun postPage id () =
 				    Current = { RawX = e.OffsetX,
 						RawY = e.OffsetY
 					      },
-				    Piece = p''''.Piece
-				}}
+				    Piece = piecer.Piece
+				},
+				    Prom = None}
 			    in
 				set renderstate (Some st);
 				return ()
 			    end	
 		    end
 		  | None => return ()
-			    
+
+	    and handlePseudoLegalMoveUI (rstate : boardstate) (move : move) =
+		case (doMove rstate.Full move) of
+		    None =>
+		    let
+			val st = {Highlight = rstate.Highlight,
+				  Pieces = rstate.Full.Pieces,
+				  Full = rstate.Full,
+				  DragPiece = None,
+				  Prom = None}
+		    in
+			set renderstate (Some st);
+			return ()
+		    end
+		  | Some newState =>
+		    let
+			val st = {Highlight = [],
+				  Pieces = newState.Pieces,
+				  Full = newState,
+				  DragPiece = None,
+				  Prom = None}
+		    in
+			set renderstate (Some st);
+			doSpeak (SMovePiece (move.Src, move.Dest, move.Prom));
+			return ()
+		    end
 			    
 	    and mouseup e =
 		p' <- get renderstate;
 		case p' of
 		    Some p'' =>
 		    (case p''.DragPiece of
-			 None => return ()
+			 None =>
+			 (case p''.Prom of
+			      None => return ()
+			    | Some prom' => 
+			      
+			      (* detect click in promotion area *)
+			      (case (clampToPromSq e.OffsetX e.OffsetY) of
+				   None => return ()
+				 | Some p =>
+				   handlePseudoLegalMoveUI p'' {Src=prom'.Src, Dest = prom'.Dest, Prom=Some p}))
+			 
 		       | Some d =>
 			 let
 			     val sqX = clampToBoardCoordinateX e.OffsetX
@@ -222,29 +281,44 @@ fun postPage id () =
 			     val srcY = clampToBoardCoordinateY d.Src.RawY
 
 			 in
-			     
-			     case (doMove p''.Full {Src={X=srcX,Y=srcY}, Dest = {X=sqX,Y=sqY}, Prom=None}) of
-				 None =>
+			     if (requiresPromotionSq p''.Full.Pieces srcX srcY sqX sqY) then
 				 let
 				     val st = {Highlight = p''.Highlight,
 					       Pieces = p''.Full.Pieces,
 					       Full = p''.Full,
-					       DragPiece = None}
+					       DragPiece = None,
+					       Prom = Some {Src={X=srcX,Y=srcY},Dest={X=sqX,Y=sqY}}}
 				 in
 				     set renderstate (Some st);
 				     return ()
 				 end
-			       | Some newState =>
-				 let
-				     val st = {Highlight = [],
-					       Pieces = newState.Pieces,
-					       Full = newState,
-					       DragPiece = None}
-				 in
-				     set renderstate (Some st);
-				     doSpeak (SMovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}, None));
-				     return ()
-				 end
+			     else
+				 handlePseudoLegalMoveUI p'' {Src={X=srcX,Y=srcY}, Dest = {X=sqX,Y=sqY}, Prom=None}
+				 
+				 (*case (doMove p''.Full {Src={X=srcX,Y=srcY}, Dest = {X=sqX,Y=sqY}, Prom=None}) of
+				     None =>
+				     let
+					 val st = {Highlight = p''.Highlight,
+						   Pieces = p''.Full.Pieces,
+						   Full = p''.Full,
+						   DragPiece = None,
+						   Prom = None}
+				     in
+					 set renderstate (Some st);
+					 return ()
+				     end
+				   | Some newState =>
+				     let
+					 val st = {Highlight = [],
+						   Pieces = newState.Pieces,
+						   Full = newState,
+						   DragPiece = None,
+						   Prom = None}
+				     in
+					 set renderstate (Some st);
+					 doSpeak (SMovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}, None));
+					 return ()
+				     end*)
 			     
 			 end)
 		  | None => return ()
@@ -270,7 +344,8 @@ fun postPage id () =
 				RawY = e.OffsetY
 				},
 				Piece = d.Piece
-			    }}
+				},
+				Prom = None}
 			in
 			    set renderstate (Some st);
 			    return ()
@@ -321,6 +396,21 @@ fun postPage id () =
 			fillRect ctx (size * 8 + offProm) (row * size) size size;
 			draw_piece_dl ctx piece (float (size * 8 + offProm)) (float (row * size))
 
+		    and paint_prom ctx pr x' =
+			case pr of
+			    Some p =>
+			    if p.Dest.Y = 0 then
+				(paint_prom_sq ctx 0 WhiteQueen x';
+				paint_prom_sq ctx 1 WhiteRook x';
+				paint_prom_sq ctx 2 WhiteBishop x';
+				paint_prom_sq ctx 3 WhiteKnight x')
+			    else
+				(paint_prom_sq ctx 4 BlackKnight x';
+				paint_prom_sq ctx 5 BlackBishop x';
+				paint_prom_sq ctx 6 BlackRook x';
+				paint_prom_sq ctx 7 BlackQueen x')
+			  | None => return ()
+					   
 		    and piece_to_id piece =
 			case piece of
 			    WhiteKing => wk
@@ -371,7 +461,9 @@ fun postPage id () =
 			    val hs = x.Highlight
 			    val ps = x.Pieces
 			    val pd = x.DragPiece
-			in			    
+			    val pr = x.Prom
+			in
+			    clearRect ctx (float 0) (float 0) (float canvasW) (float canvasH);
 			    setFillStyle ctx light;
 			    paint_row0 ctx 0;
 			    paint_row1 ctx 1;
@@ -391,18 +483,8 @@ fun postPage id () =
 			    paint_row0 ctx 5;
 			    paint_row1 ctx 6;
 			    paint_row0 ctx 7;
-
 			    
-			    paint_prom_sq ctx 0 WhiteQueen x';
-			    paint_prom_sq ctx 1 WhiteRook x';
-			    paint_prom_sq ctx 2 WhiteBishop x';
-			    paint_prom_sq ctx 3 WhiteKnight x';
-			    
-			    paint_prom_sq ctx 4 BlackKnight x';
-			    paint_prom_sq ctx 5 BlackBishop x';
-			    paint_prom_sq ctx 6 BlackRook x';
-			    paint_prom_sq ctx 7 BlackQueen x';
-
+			    paint_prom ctx pr x';
 			    (* TODO otherwise just clear this section? *)
 
 			    setFillStyle ctx red;
@@ -441,7 +523,8 @@ fun postPage id () =
 						 Highlight = sq :: [],
 						 Pieces = s''.Pieces,
 						 Full = s''.Full,
-						 DragPiece = s''.DragPiece
+						 DragPiece = s''.DragPiece,
+						 Prom = None
 						})
 			      | None => return ())
 			  | Position(p) =>
@@ -452,7 +535,8 @@ fun postPage id () =
 						 Highlight = [],
 						 Pieces = p.State.Pieces,
 						 Full = p.State,
-						 DragPiece = None
+						 DragPiece = None,
+						 Prom = None
 						})
 			      | None => return ())
 			    
@@ -487,7 +571,7 @@ fun postPage id () =
 	    <button value="Back" onclick={fn _ => doSpeak SBack } />
 	    <button value="Fw" onclick={fn _ => doSpeak SForward } />
 	    
-            <canvas id={c} width={size * 9 + offProm} height={size * 8} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
+            <canvas id={c} width={canvasW} height={canvasH} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
 	</canvas>
 		    </body>
 	    </xml>

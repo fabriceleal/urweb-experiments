@@ -721,20 +721,25 @@ fun validForProm k =
       | Knight => True
       | _ => False  
 		  
-fun requiresPromotion (piece : piecerec) (dest : square) =
+fun requiresPromotion (piece : piecerec) destY =
     case (piece_to_kind piece.Piece) of
 	Pawn =>
 	(case (piece_to_player piece.Piece) of
-	     White => dest.Y = 0
-	   | Black => dest.Y = 7)
+	     White => destY = 0
+	   | Black => destY = 7)
       | _ => False
+
+fun requiresPromotionSq pieces srcX srcY destX destY =
+    case (pieceAt2 pieces srcX srcY) of
+	None => False
+      | Some p => requiresPromotion p destY
 
 (* a move as correct promotion info if <there's no promotion specified and move doesnt require it> OR <there's a kind, 
 that kind is an available kind for promotion and the move requires promotion>  *)
 fun promOk piece move =
     case move.Prom of
-	None => not (requiresPromotion piece move.Dest)
-      | Some k => (requiresPromotion piece move.Dest) && (validForProm k)
+	None => not (requiresPromotion piece move.Dest.Y)
+      | Some k => (requiresPromotion piece move.Dest.Y) && (validForProm k)
 
 (* test if a move is pseudo-legal *)
 (* a move is pseudo-legal if it obeys to piece move rules. not putting/leaving the own king in check is checked afterwards *)
