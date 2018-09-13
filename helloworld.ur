@@ -85,7 +85,41 @@ datatype pgnTree =
 	 
 datatype pgnRoot =
 	 Root of list pgnTree
+ 
 
+fun tree2 (root : option int) : transaction pgnRoot =
+    ls <- query (SELECT position.Move FROM position WHERE {eqNullable' (SQL position.PreviousPositionId) root})
+		(fn r ls => return (r :: ls)) [];
+    let
+	val ch = List.mp (fn r =>
+			     case r.Position.Move of
+				 None => Node ("", [])
+			       | Some m => Node (m, [])) ls
+    in
+	return (Root ch)
+    end
+
+fun tree3 (root : option int) =
+    let
+	fun recurse root =
+	    List.mapQueryM (SELECT position.Id, position.Move FROM position WHERE {eqNullable' (SQL position.PreviousPositionId) root})
+			  (fn r =>
+			      case r.Position.Move of
+				  None =>
+				  return (Node ("", []))
+				| Some m =>
+				  ch <- recurse (Some r.Position.Id);
+				  return (Node (m, ch)))
+    in
+	ch <- recurse root;
+	return (Root ch)
+    end
+
+
+fun tree4 (id: int) =
+    current <- oneRow (SELECT post.RootPositionId FROM post WHERE post.Id = {[id]});
+    tree3 (Some current.Post.RootPositionId)    
+		 
 		 (*
 fun tree2 (root : option int) =
     queryX' (SELECT * FROM position WHERE {eqNullable' (SQL position.PreviousPositionId) root})
@@ -178,6 +212,9 @@ fun postPage id () =
 		room <- getRoom ();
 		Room.send room (Highlight sq)
 
+	and getTree () =
+	    tree4 id
+	    
 	and doSpeak line =	 
 	    rpc (speak line)
 	    
@@ -188,8 +225,9 @@ fun postPage id () =
 			   WHERE post.Id = {[id]});
 
 	xmlMoves <- tree moveCell (Some current.Post.RootPositionId);
-(*	moveTree <- tree2 (Some current.Post.RootPositionId);*)
+	moveTree <- tree2 (Some current.Post.RootPositionId);
 
+	pgnstate <- source (Root []);
 	renderstate <- source None;
 	mousestate <- source {RawX=0,RawY=0};
 	
@@ -197,8 +235,29 @@ fun postPage id () =
 	c <- fresh;
 	
 	let
-	    
-	    fun clampToBoardCoordinateX rawX =
+	    (* TODO algebraic *)
+	    (* TODO variations, comments? *)
+
+	    fun renderPgnN pgnN =
+		case pgnN of
+		    Node (move, children) =>
+		    let
+			val rest = case children of
+				       [] => <xml></xml>
+				     | a :: _ =>  renderPgnN a
+		    in
+			<xml>{[move]} {rest}</xml>
+		    end
+		    
+		    
+	    and  renderPgn pgn =
+		case pgn of
+		    Root [] =>
+		    return <xml> * </xml>
+		  | Root (a :: _) => 
+		    return <xml> {renderPgnN a} </xml>		
+		    
+	    and clampToBoardCoordinateX rawX =
 		trunc (float(rawX) / float(size))
 
 	    and clampToBoardCoordinateY rawY =
@@ -406,7 +465,6 @@ fun postPage id () =
 		
 		let
 
-		    
 		    fun paint_row0 ctx row =	    
 			fillRect ctx 0 (row * size) size size;
 			fillRect ctx (size * 2) (row * size) size size;
@@ -568,7 +626,9 @@ fun postPage id () =
 						 Full = p.State,
 						 DragPiece = None,
 						 Prom = None
-						})
+						});
+				x <- rpc (getTree ());
+				set pgnstate x
 			      | None => return ())
 			    
 			
@@ -605,9 +665,10 @@ fun postPage id () =
             <canvas id={c} width={canvasW} height={canvasH} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
 	</canvas>
 
-			    {xmlMoves} 
+(*			    {xmlMoves} *)
 (*			    {moveTree} *)
-	
+
+<dyn signal={m <- signal pgnstate; renderPgn m } />
 		    </body>
 	    </xml>
     end
