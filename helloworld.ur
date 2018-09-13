@@ -86,7 +86,7 @@ datatype pgnTree =
 datatype pgnRoot =
 	 Root of list pgnTree
  
-
+(*
 fun tree2 (root : option int) : transaction pgnRoot =
     ls <- query (SELECT position.Move FROM position WHERE {eqNullable' (SQL position.PreviousPositionId) root})
 		(fn r ls => return (r :: ls)) [];
@@ -97,7 +97,7 @@ fun tree2 (root : option int) : transaction pgnRoot =
 			       | Some m => Node (m, [])) ls
     in
 	return (Root ch)
-    end
+    end *)
 
 fun tree3 (root : option int) =
     let
@@ -146,10 +146,10 @@ fun postPage id () =
 	fun getRoom () =
 	    r <- oneRow (SELECT post.Room FROM post WHERE post.Id = {[id]});
 	    return r.Post.Room
-
+(*
 	and moveCell r =
 	    <xml>{[r.Move]}</xml>
-	    
+	    *)
 	and speak line =
 	    case line of
 		SMovePiece (src, dest, kind) =>
@@ -224,10 +224,10 @@ fun postPage id () =
 			   FROM post JOIN position ON post.CurrentPositionId = position.Id (* post.Id = position.PostId *)
 			   WHERE post.Id = {[id]});
 
-	xmlMoves <- tree moveCell (Some current.Post.RootPositionId);
-	moveTree <- tree2 (Some current.Post.RootPositionId);
+(*	xmlMoves <- tree moveCell (Some current.Post.RootPositionId);*)
+	moveTree <- tree3 (Some current.Post.RootPositionId);
 
-	pgnstate <- source (Root []);
+	pgnstate <- source moveTree;
 	renderstate <- source None;
 	mousestate <- source {RawX=0,RawY=0};
 	
