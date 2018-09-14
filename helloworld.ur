@@ -87,31 +87,23 @@ datatype pgnTree =
 datatype pgnRoot =
 	 Root of int * list pgnTree
  
-(*
-fun tree2 (root : option int) : transaction pgnRoot =
-    ls <- query (SELECT position.Move FROM position WHERE {eqNullable' (SQL position.PreviousPositionId) root})
-		(fn r ls => return (r :: ls)) [];
-    let
-	val ch = List.mp (fn r =>
-			     case r.Position.Move of
-				 None => Node ("", [])
-			       | Some m => Node (m, [])) ls
-    in
-	return (Root ch)
-    end *)
 
-fun tree3 (root : option int) =
+    
+
+fun tree3 (root : option int) parentFen =
     let
-	fun recurse root =
-	    List.mapQueryM (SELECT position.Id, position.Fen, position.Move FROM position WHERE {eqNullable' (SQL position.PreviousPositionId) root})
+	fun recurse root fen =
+	    List.mapQueryM (SELECT position.Id, position.Fen, position.Move
+			    FROM position 
+			    WHERE {eqNullable' (SQL position.PreviousPositionId) root})
 			  (fn r =>
 			      case r.Position.Move of
 				  None =>
 				  return (Node (r.Position.Id, "", []))
 				| Some m =>
-				  ch <- recurse (Some r.Position.Id);
+				  ch <- recurse (Some r.Position.Id) r.Position.Fen;
 				  return (Node (r.Position.Id,
-					    (moveToAlgebraic (fen_to_state r.Position.Fen) (str_to_move m)),
+					    (moveToAlgebraic (fen_to_state fen) (str_to_move m)),
 					    ch))
 			  )
     in
@@ -119,14 +111,14 @@ fun tree3 (root : option int) =
 	    None =>
 	    return (Root (0, []))
 	  | Some root' => 
-	    ch <- recurse root;
+	    ch <- recurse root parentFen;
 	    return (Root (root', ch))
     end
-
+	(**)
 
 fun tree4 (id: int) =
-    current <- oneRow (SELECT post.RootPositionId FROM post WHERE post.Id = {[id]});
-    tree3 (Some current.Post.RootPositionId)    
+    current <- oneRow (SELECT post.RootPositionId, position.Fen FROM post JOIN position ON post.RootPositionId = position.Id WHERE post.Id = {[id]});
+    tree3 (Some current.Post.RootPositionId) current.Position.Fen   
 		 
 		 (*
 fun tree2 (root : option int) =
@@ -237,12 +229,14 @@ fun postPage id () =
 	    
     in
 
-	current <- oneRow (SELECT post.Nam, post.Room, post.RootPositionId, position.Fen
-			   FROM post JOIN position ON post.CurrentPositionId = position.Id (* post.Id = position.PostId *)
+	current <- oneRow (SELECT post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
+			   FROM post
+			     JOIN position AS Position ON post.CurrentPositionId = Position.Id
+			     JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
 			   WHERE post.Id = {[id]});
 
 (*	xmlMoves <- tree moveCell (Some current.Post.RootPositionId);*)
-	moveTree <- tree3 (Some current.Post.RootPositionId);
+	moveTree <- tree3 (Some current.Post.RootPositionId) current.PositionR.Fen;
 
 	pgnstate <- source moveTree;
 	renderstate <- source None;
