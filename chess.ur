@@ -184,6 +184,16 @@ fun kind_to_str p =
       | Bishop => "b"
       | Knight => "n"
       | Pawn => "p"
+
+fun str_to_kind s =
+    case s of
+	"k" => Some King
+      | "q" => Some Queen
+      | "r" => Some Rook
+      | "b" => Some Bishop
+      | "n" => Some Knight
+      | "p" => Some Pawn
+      | _ => None
 		  
 fun char_to_piece c =
     case c of
@@ -446,6 +456,34 @@ fun moveStr (mov : move) =
     (sqStr mov.Src) ^ (sqStr mov.Dest) ^ (case mov.Prom of
 						    Some k => kind_to_str k
 						  | None => "")
+
+fun str_to_move str =
+    let
+	val len = strlen str
+		
+	fun str_to_sq s =
+	    let
+		val l = strlen s
+	    in
+		if l > 1 then
+		    let
+			val fst = strsub s 0
+			val snd = strsub (substring s 1 (l -1)) 0
+		    in		    
+			{X = fileToI fst, Y = (if (isdigit snd) then
+						   (case (read (show snd) : option int) of
+							None => -1
+						      | Some v => (7 - (v - 1)))   
+					       else
+						   -1) }
+		    end
+		else
+		    {X=-1, Y=-1}
+	    end
+    in
+	{Src=(str_to_sq str), Dest = (str_to_sq (substring str 2 (len -2))), Prom = (str_to_kind (substring str 4 (len -4))) }
+    end
+
     
 fun enPassantToFen state =
     case state.EnPassant of
@@ -926,3 +964,18 @@ fun doMove state move =
 	end
       | False => None
 		
+fun moveToAlgebraic (state : gamestate) (move: move) =
+ (*   moveStr move*)
+    let
+	val prec = pieceAt2 state.Pieces move.Src.X move.Src.Y
+    in
+	case prec of
+	    None => ""
+	  | Some p =>
+	    case (piece_to_kind p.Piece) of
+		Pawn =>
+	      (*check if there was capture. otherwise just output the dest sq*)
+		sqStr move.Dest
+	      | _  => moveStr move
+    end
+

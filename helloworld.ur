@@ -103,14 +103,17 @@ fun tree2 (root : option int) : transaction pgnRoot =
 fun tree3 (root : option int) =
     let
 	fun recurse root =
-	    List.mapQueryM (SELECT position.Id, position.Move FROM position WHERE {eqNullable' (SQL position.PreviousPositionId) root})
+	    List.mapQueryM (SELECT position.Id, position.Fen, position.Move FROM position WHERE {eqNullable' (SQL position.PreviousPositionId) root})
 			  (fn r =>
 			      case r.Position.Move of
 				  None =>
 				  return (Node (r.Position.Id, "", []))
 				| Some m =>
 				  ch <- recurse (Some r.Position.Id);
-				  return (Node (r.Position.Id, m, ch)))
+				  return (Node (r.Position.Id,
+					    (moveToAlgebraic (fen_to_state r.Position.Fen) (str_to_move m)),
+					    ch))
+			  )
     in
 	case root of
 	    None =>

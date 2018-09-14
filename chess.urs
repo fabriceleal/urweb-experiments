@@ -52,3 +52,8 @@ val moveStr : move -> string
 			  
 val requiresPromotionSq : list piecerec -> int -> int -> int -> int -> bool
 
+val moveToAlgebraic : gamestate -> move -> string
+
+val str_to_move : string -> move
+
+			    
