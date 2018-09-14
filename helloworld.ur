@@ -103,7 +103,7 @@ fun tree3 (root : option int) parentFen =
 				| Some m =>
 				  ch <- recurse (Some r.Position.Id) r.Position.Fen;
 				  return (Node (r.Position.Id,
-					    (moveToAlgebraic (fen_to_state fen) (str_to_move m)),
+					    (moveToAlgebraic (fen_to_state fen) (str_to_move m) False),
 					    ch))
 			  )
     in

@@ -734,7 +734,8 @@ fun allLegals state =
 
 fun getEnemyKing (state: gamestate) : option piecerec =
     pieceAtKP state.Pieces King (other state.Player)
-    
+
+(* checks if king can be captured or if it castled through an attacked square, signal of a illegal move played *)
 fun isKingCapturable (state : gamestate) castle src : bool =
     case (getEnemyKing state) of
 	None => False
@@ -750,7 +751,24 @@ fun isKingCapturable (state : gamestate) castle src : bool =
 	    || hasDest moves {X=prec.X, Y=prec.Y}
 	end
 
-	
+datatype gamestatus =
+	 Playing
+       | Check
+       | Checkmate
+(*	 
+fun checkState (poststate : gamestate) move =
+    case (getEnemyKing state) of
+	None => Playing
+      | Some prec =>
+	let
+	    val moves = allLegals state
+	in
+	    if hasDest moves {X=prec.X, Y=prec.Y} then
+		
+	    else
+		Playing
+	end
+	*)
 fun validForProm k =
     case k of
 	Queen => True
@@ -963,19 +981,73 @@ fun doMove state move =
 		Some newState
 	end
       | False => None
-		
-fun moveToAlgebraic (state : gamestate) (move: move) =
+
+fun sqEq mSq sq =
+    case mSq of
+	None => False
+      | Some sq' => sq'.X = sq.X && sq'.Y = sq.Y
+
+fun isRegularCapture state move =
+    case (pieceAt2 state.Pieces move.Dest.X move.Dest.Y, pieceAt2 state.Pieces move.Src.X move.Src.Y) of
+	(Some p, Some p') =>
+	not (peq (piece_to_player p.Piece) (piece_to_player p'.Piece))
+      | (_, _) => False
+	
+(* TODO fix ambiguous moves *)
+
+fun moveAlgWNbr (state:gamestate) withNbr =
+    if withNbr || (peq White state.Player) then
+	(show state.FullMove) ^ "." ^ (case state.Player of
+					   Black => ".. "
+					 | _ => " ")
+    else
+	""
+		  
+fun moveToAlgebraic (state : gamestate) (move: move) (withNbr:bool) =
  (*   moveStr move*)
     let
 	val prec = pieceAt2 state.Pieces move.Src.X move.Src.Y
+	val regularX = isRegularCapture state move
+	val isCheck = False
     in
-	case prec of
-	    None => ""
-	  | Some p =>
-	    case (piece_to_kind p.Piece) of
-		Pawn =>
-	      (*check if there was capture. otherwise just output the dest sq*)
-		sqStr move.Dest
-	      | _  => moveStr move
+	(moveAlgWNbr state withNbr) ^ (case prec of
+					   None => ""
+					 | Some p =>
+					   case (piece_to_kind p.Piece) of
+					       Pawn =>
+					       (*check if there was capture. otherwise just output the dest sq*)
+					       if (sqEq state.EnPassant move.Dest) then
+						   (fileStr move.Src.X) ^ "x" ^(sqStr move.Dest) ^ "e.p."
+					       else
+						   if regularX then
+						       (fileStr move.Src.X) ^ "x" ^ (sqStr move.Dest)
+						   else
+						       sqStr move.Dest
+					     | Knight =>
+					       "N" ^ (if regularX then
+							  "x"
+						      else
+							  "") ^ (sqStr move.Dest)
+					     | Bishop =>
+					       "B" ^ (if regularX then
+							  "x"
+						      else
+							  "") ^ (sqStr move.Dest)
+					     | Rook =>
+					       "R" ^ (if regularX then
+							  "x"
+						      else
+							  "") ^ (sqStr move.Dest)
+					     | Queen =>
+					       "Q" ^ (if regularX then
+							  "x"
+						      else
+							  "") ^ (sqStr move.Dest)
+					     | King =>
+					       "K" ^ (if regularX then
+							  "x"
+						      else
+							  "") ^ (sqStr move.Dest) 
+					     | _  => moveStr move)
     end
 
