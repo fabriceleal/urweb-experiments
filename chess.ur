@@ -227,7 +227,7 @@ fun fenToPlayer f =
 		 
 fun fen_to_state s =
     let
-	fun parts_pieces_aux pieces player wk wq bk bq enpx enpy =	
+	fun parts_pieces_aux pieces player wk wq bk bq enpx enpy hm fm =	
 	    {
 	     Pieces = pieces,
 	     Player = player,
@@ -239,28 +239,77 @@ fun fen_to_state s =
 			     Some {X=enpx,Y=enpy}
 			 else
 			     None,
-	     HalfMove = 0,
-	     FullMove = 1
+	     HalfMove = hm,
+	     FullMove = fm
 	    }
 
+	and fromFM s pieces player wk wq bk bq enpx enpy hm fm =
+	    let
+		val l = strlen s
+	    in
+		if l = 0 then
+		    (* failback *)
+		    parts_pieces_aux pieces player wk wq bk bq enpx enpy hm 1
+		else
+		    case (read s : option int) of
+			None => (* failback *)
+			parts_pieces_aux pieces player wk wq bk bq enpx enpy hm 1
+		      | Some v =>
+			parts_pieces_aux pieces player wk wq bk bq enpx enpy hm v
+	    end
+	
+
+	and fromHM s pieces player wk wq bk bq enpx enpy hm =
+	    let
+		val l = strlen s
+	    in
+		if l = 0 then
+		    (* failback *)
+		    parts_pieces_aux pieces player wk wq bk bq enpx enpy 0 1
+		else
+		    let
+			val fst = (strsub s 0)
+		    in
+			case fst of
+			    #" " =>
+			    fromHM (substring s 1 (l -1)) pieces player wk wq bk bq enpx enpy (-1)
+			  | _ =>
+			    let
+				val idx = strsindex s " "
+			    in
+				case idx of
+				    None => (* failback *)
+				    parts_pieces_aux pieces player wk wq bk bq enpx enpy 0 1
+				  | Some idx' =>
+				    case (read (substring s 0 idx') : option int) of
+					None => (* failback *)
+					parts_pieces_aux pieces player wk wq bk bq enpx enpy 0 1
+				      | Some v =>
+					fromFM (substring s idx' ((strlen s) - idx')) pieces player wk wq bk bq enpx enpy v 1
+			    end
+		    end
+	    end
+			
+	    
 	and fromEnPassant s pieces player wk wq bk bq enpx enpy =
 	    let
 		val l = strlen s
 	    in
 		if l = 0 then		    
-		    parts_pieces_aux pieces player wk wq bk bq enpx enpy (* trigger error ? *)
+		    parts_pieces_aux pieces player wk wq bk bq enpx enpy 0 1 (* trigger error ? *)
 		else
 		    let
 			val fst = (strsub s 0)
 		    in
 			case fst of			  
-			    #" " => parts_pieces_aux pieces player wk wq bk bq enpx enpy
-			  | #"-" => parts_pieces_aux pieces player wk wq bk bq enpx enpy
+			    #" " => parts_pieces_aux pieces player wk wq bk bq enpx enpy 0 1
+			  | #"-" => (*parts_pieces_aux pieces player wk wq bk bq enpx enpy 0 1*)
+				    fromHM (substring s 1 (l -1)) pieces player wk wq bk bq enpx (-1) (-1)
 			  | _ =>
 			    if (isdigit fst) then
 				case (read (show fst) : option int) of
-				    None => parts_pieces_aux pieces player wk wq bk bq enpx enpy
-				  | Some v => fromEnPassant (substring s 1 (l -1)) pieces player wk wq bk bq enpx (7 - (v - 1))
+				    None => parts_pieces_aux pieces player wk wq bk bq enpx enpy 0 1
+				  | Some v => fromHM (substring s 1 (l -1)) pieces player wk wq bk bq enpx (7 - (v - 1)) (-1)
 			    else
 				fromEnPassant (substring s 1 (l -1)) pieces player wk wq bk bq (fileToI fst) enpy
 			    
@@ -272,19 +321,19 @@ fun fen_to_state s =
 		val l = strlen s
 	    in
 		if l = 0 then		    
-		    parts_pieces_aux pieces player wk wq bk bq (-1) (-1) (* trigger error ? *)
+		    parts_pieces_aux pieces player wk wq bk bq (-1) (-1) 0 1 (* trigger error ? *)
 		else
 		    let
 			val fst = (strsub s 0)
 		    in
 			case fst of
 			    #"K" => fromcastling (substring s 1 (l -1)) pieces player True wq bk bq
-			  | #"Q" => fromcastling (substring s 1 (l -1)) pieces player wk True bk bq
-			  | #"k" => fromcastling (substring s 1 (l -1)) pieces player wk wq True bq
-			  | #"q" => fromcastling (substring s 1 (l -1)) pieces player wk wq bk True
-			  | #"-" => fromcastling (substring s 1 (l -1)) pieces player wk wq bk bq
-			  | #" " => fromEnPassant (substring s 1 (l -1)) pieces player wk wq bk bq (-1) (-1)
-			  | _ => parts_pieces_aux pieces player wk wq bk bq (-1) (-1) (* trigger error ? *)
+			  | #"Q" => fromcastling (substring s 1 (l -1)) pieces player wk True bk bq 
+			  | #"k" => fromcastling (substring s 1 (l -1)) pieces player wk wq True bq 
+			  | #"q" => fromcastling (substring s 1 (l -1)) pieces player wk wq bk True 
+			  | #"-" => fromcastling (substring s 1 (l -1)) pieces player wk wq bk bq 
+			  | #" " => fromEnPassant (substring s 1 (l -1)) pieces player wk wq bk bq (-1) (-1) 
+			  | _ => parts_pieces_aux pieces player wk wq bk bq (-1) (-1) 0 1 (* trigger error ? *)
 		    end
 	    end
 	    
@@ -293,13 +342,13 @@ fun fen_to_state s =
 		val l = strlen s
 	    in
 		if l = 0 then
-		    parts_pieces_aux pieces White False False False False (-1) (-1) (* trigger error ? *)
+		    parts_pieces_aux pieces White False False False False (-1) (-1) 0 1 (* trigger error ? *)
 		else
 		    let
 			val fst = (strsub s 0)
 		    in
 			case (fenToPlayer fst) of
-			    None => parts_pieces_aux pieces White False False False False (-1) (-1) (* trigger error? *)
+			    None => parts_pieces_aux pieces White False False False False (-1) (-1) 0 1 (* trigger error? *)
 			  | Some player => fromcastling (substring s 2 (l -2)) pieces player False False False False
 		    end
 	    end
@@ -309,7 +358,7 @@ fun fen_to_state s =
 		val l = strlen s
 	    in
 		if l = 0 then
-		    parts_pieces_aux pieces White False False False False (-1) (-1) (* trigger error ? *)
+		    parts_pieces_aux pieces White False False False False (-1) (-1) 0 1 (* trigger error ? *)
 		else
 		    let
 			val fst = (strsub s 0)
@@ -321,10 +370,10 @@ fun fen_to_state s =
 			    if isdigit fst then
 				case (read (show fst) : option int) of
 				    Some i => fen_to_pieces_aux (substring s 1 (l -1)) row (col + i) pieces
-				  | None => parts_pieces_aux pieces White False False False False (-1) (-1) (* trigger error ? *)
+				  | None => parts_pieces_aux pieces White False False False False (-1) (-1) 0 1 (* trigger error ? *)
 			    else
 				case (char_to_piece fst) of
-				    None => parts_pieces_aux pieces White False False False False (-1) (-1) (* trigger error? *)
+				    None => parts_pieces_aux pieces White False False False False (-1) (-1) 0 1 (* trigger error? *)
 				  | Some p => fen_to_pieces_aux (substring s 1 (l - 1)) row (col + 1)
 								({X = col, Y = row, Piece= p} :: pieces)
 		    end
@@ -493,10 +542,12 @@ fun enPassantToFen state =
 fun state_to_fen state : string  =
     List.foldr strcat "" (List.append (pieces_to_fen state.Pieces)
 				      (" " :: (playerToFen state.Player ::
-							   (
-							    List.append
+							   (List.append
 								(" " :: (castlingToFen state))
-								(" " :: (enPassantToFen state))
+								(List.append
+								     (" " :: (enPassantToFen state))
+								     (" " :: (show state.HalfMove) :: " " :: (show state.FullMove) :: []) ) 
+								
 			 ))))
 
 
