@@ -12,7 +12,8 @@ datatype serverboardmsg =
 	 SMovePiece of square * square * option kind
        | SHighlight of square
        | SBack 
-       | SForward 
+       | SForward
+       | SPosition of int
 
 	 
 structure Room = Sharedboard.Make(struct
@@ -81,10 +82,10 @@ val canvasH = size * 8
 
 
 datatype pgnTree =
-	 Node of string * list pgnTree
+	 Node of int * string * list pgnTree
 	 
 datatype pgnRoot =
-	 Root of list pgnTree
+	 Root of int * list pgnTree
  
 (*
 fun tree2 (root : option int) : transaction pgnRoot =
@@ -106,13 +107,17 @@ fun tree3 (root : option int) =
 			  (fn r =>
 			      case r.Position.Move of
 				  None =>
-				  return (Node ("", []))
+				  return (Node (r.Position.Id, "", []))
 				| Some m =>
 				  ch <- recurse (Some r.Position.Id);
-				  return (Node (m, ch)))
+				  return (Node (r.Position.Id, m, ch)))
     in
-	ch <- recurse root;
-	return (Root ch)
+	case root of
+	    None =>
+	    return (Root (0, []))
+	  | Some root' => 
+	    ch <- recurse root;
+	    return (Root (root', ch))
     end
 
 
@@ -208,6 +213,15 @@ fun postPage id () =
 		  room <- getRoom ();
 		  Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
 		end
+	      | SPosition idP =>
+		row2 <- oneRow (SELECT position.Id, position.Fen
+				FROM position
+				WHERE position.PostId = {[id]} AND position.Id = {[idP]});
+		
+		dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
+		room <- getRoom ();
+		Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
+		
 	      | SHighlight sq =>
 		room <- getRoom ();
 		Room.send room (Highlight sq)
@@ -238,24 +252,34 @@ fun postPage id () =
 	    (* TODO algebraic *)
 	    (* TODO variations, comments? *)
 
-	    fun renderPgnN pgnN =
+	    fun renderPgnN pgnN siblings =
 		case pgnN of
-		    Node (move, children) =>
+		    Node (idP, move, children) =>
 		    let
 			val rest = case children of
 				       [] => <xml></xml>
-				     | a :: _ =>  renderPgnN a
+				     | a :: siblings' =>  renderPgnN a siblings'
+
+			val siblingsRender = case siblings of
+						 [] => <xml></xml>
+					       | _ :: _ =>
+						 <xml>
+						   { List.foldl (fn rc acc => <xml>{acc} ( {renderPgnN rc []} )</xml>) <xml></xml> siblings}
+						 </xml>
 		    in
-			<xml>{[move]} {rest}</xml>
-		    end
-		    
+			<xml>
+			  <span onclick={fn _ => doSpeak (SPosition idP)}>{[move]}</span>
+			  {siblingsRender}
+			  {rest}
+			</xml>
+		    end		    
 		    
 	    and  renderPgn pgn =
 		case pgn of
-		    Root [] =>
+		    Root (_, []) =>
 		    return <xml> * </xml>
-		  | Root (a :: _) => 
-		    return <xml> {renderPgnN a} </xml>		
+		  | Root (_, (a :: siblings)) => 
+		    return <xml> {renderPgnN a siblings} </xml>		
 		    
 	    and clampToBoardCoordinateX rawX =
 		trunc (float(rawX) / float(size))
