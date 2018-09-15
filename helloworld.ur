@@ -28,7 +28,7 @@ sequence commentSeq
 table post : { Id : int, Nam : string, RootPositionId: int, CurrentPositionId : int, Room : Room.topic }
 		 PRIMARY KEY Id
 	     
-table position : {Id: int, PostId: int, Fen : string, Move: option string, PreviousPositionId: option int }
+table position : {Id: int, PostId: int, Fen : string, Move: option string, MoveAlg: option string, PreviousPositionId: option int }
 		     PRIMARY KEY Id
 
 table comment : {Id: int, PositionId: int, Content: string }
@@ -82,29 +82,25 @@ val canvasH = size * 8
 
 
 datatype pgnTree =
-	 Node of int * string * list pgnTree
+	 Node of int * string * string * string * list pgnTree
 	 
 datatype pgnRoot =
 	 Root of int * list pgnTree
  
 
-    
-
 fun tree3 (root : option int) parentFen =
     let
 	fun recurse root fen =
-	    List.mapQueryM (SELECT position.Id, position.Fen, position.Move
+	    List.mapQueryM (SELECT position.Id, position.Fen, position.Move, position.MoveAlg
 			    FROM position 
 			    WHERE {eqNullable' (SQL position.PreviousPositionId) root})
 			  (fn r =>
-			      case r.Position.Move of
-				  None =>
-				  return (Node (r.Position.Id, "", []))
-				| Some m =>
+			      case (r.Position.Move, r.Position.MoveAlg) of
+				  (Some move, Some alg) =>
 				  ch <- recurse (Some r.Position.Id) r.Position.Fen;
-				  return (Node (r.Position.Id,
-					    (moveToAlgebraic (fen_to_state fen) (str_to_move m) False),
-					    ch))
+				  return (Node (r.Position.Id, fen, move, alg, ch))
+				| (_, _) =>
+				  return (Node (r.Position.Id, "", "", "", []))
 			  )
     in
 	case root of
@@ -119,17 +115,7 @@ fun tree3 (root : option int) parentFen =
 fun tree4 (id: int) =
     current <- oneRow (SELECT post.RootPositionId, position.Fen FROM post JOIN position ON post.RootPositionId = position.Id WHERE post.Id = {[id]});
     tree3 (Some current.Post.RootPositionId) current.Position.Fen   
-		 
-		 (*
-fun tree2 (root : option int) =
-    queryX' (SELECT * FROM position WHERE {eqNullable' (SQL position.PreviousPositionId) root})
-            (fn r =>
-                children <- tree2 (Some r.Position.Id);
-                return <xml>
-		  <dyn signal={return <xml><b>{[r.Position.Move]}</b>{children}</xml>} />
-		  </xml>)
-    *)
-    
+		     
 
 fun state_to_board state =
     { Highlight = [], Full = state, Pieces=state.Pieces, DragPiece = None, Prom = None}
@@ -172,10 +158,14 @@ fun postPage id () =
 		     let			     
 			 val newFen = state_to_fen manipulated
 			 val newMove = moveStr move
+			 val newMoveAlg = moveToAlgebraicClean state move manipulated
 		     in
 			 
 			 dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
-			 dml (INSERT INTO position (Id, PostId, Fen, Move, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]}, {[Some newMove]}, {[Some row.Post.CurrentPositionId]}) );
+			 dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]},
+												   {[Some newMove]},
+												   {[Some newMoveAlg]},
+												   {[Some row.Post.CurrentPositionId]}) );
 			 
 			 room <- getRoom ();
 			 
@@ -249,34 +239,36 @@ fun postPage id () =
 	    (* TODO algebraic *)
 	    (* TODO variations, comments? *)
 
-	    fun renderPgnN pgnN siblings =
+	    fun renderPgnN pgnN siblings forceAlg =
 		case pgnN of
-		    Node (idP, move, children) =>
+		    Node (idP, fen, move, moveAlg, children) =>
 		    let
 			val rest = case children of
 				       [] => <xml></xml>
-				     | a :: siblings' =>  renderPgnN a siblings'
+				     | a :: siblings' =>  renderPgnN a siblings' (any siblings)
 
 			val siblingsRender = case siblings of
 						 [] => <xml></xml>
 					       | _ :: _ =>
 						 <xml>
-						   { List.foldl (fn rc acc => <xml>{acc} ( {renderPgnN rc []} )</xml>) <xml></xml> siblings}
+						   { List.foldl (fn rc acc => <xml>{acc} ( {renderPgnN rc [] True} )</xml>) <xml></xml> siblings}
 						 </xml>
 		    in
 			<xml>
-			  <span onclick={fn _ => doSpeak (SPosition idP)}>{[move]}</span>
+			  <span onclick={fn _ => doSpeak (SPosition idP)}>
+			    {[(moveToAlgebraic (fen_to_state fen) (str_to_move move) moveAlg forceAlg)]}
+			  </span>
 			  {siblingsRender}
 			  {rest}
 			</xml>
-		    end		    
+		    end
 		    
 	    and  renderPgn pgn =
 		case pgn of
 		    Root (_, []) =>
 		    return <xml> * </xml>
 		  | Root (_, (a :: siblings)) => 
-		    return <xml> {renderPgnN a siblings} </xml>		
+		    return <xml> {renderPgnN a siblings False} </xml>		
 		    
 	    and clampToBoardCoordinateX rawX =
 		trunc (float(rawX) / float(size))
@@ -681,19 +673,48 @@ fun postPage id () =
 	    <a link={allPosts()}>all posts</a>
 
 	    <button value="Back" onclick={fn _ => doSpeak SBack } />
-	    <button value="Fw" onclick={fn _ => doSpeak SForward } />
+	      <button value="Fw" onclick={fn _ => doSpeak SForward } />
+
+		<a link={downloadPost id}>download</a>
 	    
             <canvas id={c} width={canvasW} height={canvasH} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
 	</canvas>
-
-(*			    {xmlMoves} *)
-(*			    {moveTree} *)
-
-<dyn signal={m <- signal pgnstate; renderPgn m } />
+	<dyn signal={m <- signal pgnstate; renderPgn m } />
 		    </body>
 	    </xml>
     end
     
+    end
+
+and downloadPost id =
+    let
+	fun renderPgnN pgnN siblings forceAlg =
+	    case pgnN of
+		Node (idP, fen, move, moveAlg, children) =>
+		let
+		    val rest = case children of
+				   [] => ""
+				 | a :: siblings' =>  renderPgnN a siblings' (any siblings)
+
+		    val siblingsRender = case siblings of
+					     [] => ""
+					   | _ :: _ =>
+					     (List.foldl (fn rc acc => acc ^ " (" ^ (renderPgnN rc [] True) ^ ") ") "" siblings)
+		in
+		    (moveToAlgebraic (fen_to_state fen) (str_to_move move) moveAlg forceAlg) ^ siblingsRender ^ " " ^ rest
+		end		    
+		
+	and  renderPgn pgn =
+	     case pgn of
+		 Root (_, []) =>
+		 "*"
+	       | Root (_, (a :: siblings)) => 
+		 renderPgnN a siblings False
+    in
+	tree <- tree4 id;
+	setHeader (blessResponseHeader "Content-Disposition")
+		  ("attachment; filename=post_" ^ (show id) ^ ".pgn");
+	returnBlob (textBlob (renderPgn tree)) (blessMime "application/octet-stream")
     end
      
 and index () = return <xml>
@@ -773,7 +794,8 @@ and addPost newPost =
     sharedboard <- Room.create;
     
     dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room) VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}));
-    dml (INSERT INTO position (Id, PostId, Fen, Move, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]}, {[None]}, {[None]} ));
+    dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]},
+											{[None]}, {[None]}, {[None]} ));
     
     redirect (bless "/Helloworld/allPosts")
 

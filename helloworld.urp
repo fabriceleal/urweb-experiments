@@ -14,6 +14,10 @@ library ../urweb-canvas/src/canvas
 database helloworld
 sql helloworld.sql
 allow url /Helloworld/allPosts
+allow mime text/plain
+allow mime application/octet-stream
+rewrite all ContentDisposition/*
+allow responseHeader Content-Disposition
 
 $/string
 $/list

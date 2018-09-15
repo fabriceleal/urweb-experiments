@@ -251,11 +251,19 @@ fun fen_to_state s =
 		    (* failback *)
 		    parts_pieces_aux pieces player wk wq bk bq enpx enpy hm 1
 		else
-		    case (read s : option int) of
-			None => (* failback *)
-			parts_pieces_aux pieces player wk wq bk bq enpx enpy hm 1
-		      | Some v =>
-			parts_pieces_aux pieces player wk wq bk bq enpx enpy hm v
+		    let
+			val fst = (strsub s 0)
+		    in
+			case fst of
+			    #" " =>
+			    fromFM (substring s 1 (l -1)) pieces player wk wq bk bq enpx enpy hm (-1)
+			  | _ => 
+			    case (read s : option int) of
+				None => (* failback *)
+				parts_pieces_aux pieces player wk wq bk bq enpx enpy hm 1
+			      | Some v =>
+				parts_pieces_aux pieces player wk wq bk bq enpx enpy hm v
+		    end
 	    end
 	
 
@@ -593,6 +601,56 @@ fun pemptyOrFoe pieces player x y =
       | Foe => True
       | _ => False
 
+fun legalsPawnSL pieces player src =
+    case player of
+	White =>
+	List.append	    
+	    (List.append
+		 (if src.Y = 6 && (pempty pieces player src.X (src.Y - 1)) && (pempty pieces player src.X (src.Y - 2)) then
+		      {X = src.X, Y = src.Y - 2} :: []
+		  else 
+		      [])
+		 (if (pempty pieces player src.X (src.Y - 1)) then
+		      { X=src.X, Y = src.Y - 1 } :: []
+		  else
+		      []))
+	    
+	    (List.append 
+		 (if (pfoe pieces player (src.X - 1) (src.Y - 1) ) then
+		      { X=src.X - 1, Y = src.Y - 1 } :: []
+		  else
+		      [])
+		 
+		 (if (pfoe pieces player (src.X + 1) (src.Y - 1) ) then
+		      { X=src.X + 1,  Y = src.Y - 1 } :: []
+		  else
+		      []))
+	
+
+      | Black =>
+	List.append	    
+	    (List.append
+		 (if src.Y = 1 && (pempty pieces player src.X (src.Y + 1)) && (pempty pieces player src.X (src.Y + 2)) then
+		      {X = src.X, Y = src.Y + 2} :: []
+		  else 
+		      [])
+		 (if (pempty pieces player src.X (src.Y + 1)) then
+		      { X=src.X, Y = src.Y + 1 } :: []
+		  else
+		      []))
+	    
+	    (List.append 
+		 (if (pfoe pieces player (src.X - 1) (src.Y + 1) ) then
+		      { X=src.X - 1, Y = src.Y + 1 } :: []
+		  else
+		      [])
+		 
+		 (if (pfoe pieces player (src.X + 1) (src.Y + 1) ) then
+		      { X=src.X + 1,  Y = src.Y + 1 } :: []
+		  else
+		      []))
+
+	     
 	     
 fun legalsPawn state player src =
     case player of
@@ -696,6 +754,16 @@ fun playerCanCastleQ state player =
     | Black =>
       state.BQ
 
+fun legalsKingSL pieces player src =
+    removeNones (offTest pieces player src (-1) (1) ::
+			 offTest pieces player src (-1) (0) ::
+			 offTest pieces player src (-1) (-1) ::
+			 offTest pieces player src (1) (1) ::
+			 offTest pieces player src (1) (0) ::
+			 offTest pieces player src (1) (-1) ::
+			 offTest pieces player src (0) (1) ::
+			 offTest pieces player src (0) (-1) :: [])
+
 fun legalsKing state player src =
     let
 	val pieces = state.Pieces
@@ -758,7 +826,20 @@ fun hasDestOneOf ls lssq =
 	else
 	    hasDestOneOf ls t
       | [] => False
-     
+
+fun legalsForPieceSL pieces piece =
+    let
+	val src = {X=piece.X,Y=piece.Y}
+    in
+	case (piece_to_kind piece.Piece) of
+	    Pawn => legalsPawnSL pieces (piece_to_player piece.Piece) src 
+	  | Bishop => legalsDiagonals pieces (piece_to_player piece.Piece) src
+	  | Rook => legalsOrtho pieces (piece_to_player piece.Piece) src
+	  | Queen => legalsSlide pieces (piece_to_player piece.Piece) src
+	  | Knight => legalsKnight pieces (piece_to_player piece.Piece) src
+	  | King => legalsKingSL pieces (piece_to_player piece.Piece) src
+    end
+	      
 fun legalsForPiece state piece =
     let
 	val src = {X=piece.X,Y=piece.Y}
@@ -783,8 +864,12 @@ fun allLegals state =
 	List.foldl List.append [] legals
     end
 
+fun getKing (state: gamestate) : option piecerec =
+    pieceAtKP state.Pieces King state.Player
+    
 fun getEnemyKing (state: gamestate) : option piecerec =
     pieceAtKP state.Pieces King (other state.Player)
+
 
 (* checks if king can be captured or if it castled through an attacked square, signal of a illegal move played *)
 fun isKingCapturable (state : gamestate) castle src : bool =
@@ -1053,52 +1138,93 @@ fun moveAlgWNbr (state:gamestate) withNbr =
 					 | _ => " ")
     else
 	""
-		  
-fun moveToAlgebraic (state : gamestate) (move: move) (withNbr:bool) =
- (*   moveStr move*)
+
+fun attacks piecesAll player  =
+    let
+	fun f e =
+	    peq player (piece_to_player e.Piece) (*  && keq (piece_to_kind e.Piece) Queen *)
+	    
+	val pieces = List.filter f piecesAll
+	val legals = List.mp (legalsForPieceSL pieces) pieces
+	val final = List.foldl List.append [] legals
+    in
+	final
+    end
+
+fun isOwnKingAttacked state =
+    case (getKing state) of
+	None => False
+      | Some krec =>
+	let
+	    val moves = attacks state.Pieces (other state.Player)
+	in
+	    hasDest moves {X=krec.X,Y=krec.Y}
+	end
+
+fun moveToAlgebraic (state : gamestate) (move : move) (algeb : string) (withNbr : bool) = 
+    (moveAlgWNbr state withNbr) ^ algeb
+
+fun any [a] (ls : list a) =
+    case ls of
+	[] => False
+      | _ :: _ => True
+
+fun moveToAlgebraicClean (state : gamestate) (move : move) (nextstate: gamestate) = 
     let
 	val prec = pieceAt2 state.Pieces move.Src.X move.Src.Y
 	val regularX = isRegularCapture state move
-	val isCheck = False
-    in
-	(moveAlgWNbr state withNbr) ^ (case prec of
-					   None => ""
-					 | Some p =>
-					   case (piece_to_kind p.Piece) of
-					       Pawn =>
-					       (*check if there was capture. otherwise just output the dest sq*)
-					       if (sqEq state.EnPassant move.Dest) then
-						   (fileStr move.Src.X) ^ "x" ^(sqStr move.Dest) ^ "e.p."
-					       else
-						   if regularX then
-						       (fileStr move.Src.X) ^ "x" ^ (sqStr move.Dest)
-						   else
-						       sqStr move.Dest
-					     | Knight =>
-					       "N" ^ (if regularX then
-							  "x"
-						      else
-							  "") ^ (sqStr move.Dest)
-					     | Bishop =>
-					       "B" ^ (if regularX then
-							  "x"
-						      else
-							  "") ^ (sqStr move.Dest)
-					     | Rook =>
-					       "R" ^ (if regularX then
-							  "x"
-						      else
-							  "") ^ (sqStr move.Dest)
-					     | Queen =>
-					       "Q" ^ (if regularX then
-							  "x"
-						      else
-							  "") ^ (sqStr move.Dest)
-					     | King =>
-					       "K" ^ (if regularX then
-							  "x"
-						      else
-							  "") ^ (sqStr move.Dest) 
-					     | _  => moveStr move)
+	val isCheck = isOwnKingAttacked nextstate
+	val anyLegals = any (allLegals nextstate)
+	val checkSuffix = (if isCheck then
+			       (if anyLegals then
+				    "+"
+				else
+				    "#")
+			   else
+			       "")
+    in 	
+	(case prec of
+	     None => ""
+	   | Some p =>
+	     case (piece_to_kind p.Piece) of
+		 Pawn =>
+		 (*check if there was capture. otherwise just output the dest sq*)
+		 if (sqEq state.EnPassant move.Dest) then
+		     (fileStr move.Src.X) ^ "x" ^ (sqStr move.Dest) ^ "e.p." ^ checkSuffix
+		 else
+		     if regularX then
+			 (fileStr move.Src.X) ^ "x" ^ (sqStr move.Dest) ^ checkSuffix
+		     else
+			 (sqStr move.Dest) ^ checkSuffix
+	       | Knight =>
+		 "N" ^ (if regularX then
+			    "x"
+			else
+			    "") ^ (sqStr move.Dest) ^ checkSuffix
+	       | Bishop =>
+		 "B" ^ (if regularX then
+			    "x"
+			else
+			    "") ^ (sqStr move.Dest) ^ checkSuffix
+	       | Rook =>
+		 "R" ^ (if regularX then
+			    "x"
+			else
+			    "") ^ (sqStr move.Dest) ^ checkSuffix
+	       | Queen =>
+		 "Q" ^ (if regularX then
+			    "x"
+			else
+			    "") ^ (sqStr move.Dest) ^ checkSuffix
+	       | King =>
+		 (case (isCastle state.Pieces move.Src move.Dest) of
+		      Some Kingside => "O-O" ^ checkSuffix
+		    | Some Queenside => "O-O-O" ^ checkSuffix
+		    | None => 
+		      "K" ^ (if regularX then
+				 "x"
+			     else
+				 "") ^ (sqStr move.Dest) ^ checkSuffix)
+	       | _  => moveStr move)
     end
 
