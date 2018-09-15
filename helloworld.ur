@@ -160,6 +160,9 @@ fun postPage id () =
 			 val newMove = moveStr move
 			 val newMoveAlg = moveToAlgebraicClean state move manipulated
 		     in
+			 (* debug (playerStr (other manipulated.Player));
+			 debug (show (List.mp sqStr (attacks manipulated.Pieces (other manipulated.Player))));
+			 debug (show (isOwnKingAttacked manipulated));*)
 			 
 			 dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
 			 dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]},

@@ -61,3 +61,11 @@ val any : a ::: Type -> list a -> bool
 
 val isOwnKingAttacked : gamestate -> bool
 				     
+val attacks : list piecerec -> player -> list square
+
+val other : player -> player
+
+val sqStr : square -> string
+
+val playerStr : player -> string
+			  

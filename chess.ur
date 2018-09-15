@@ -541,6 +541,10 @@ fun str_to_move str =
 	{Src=(str_to_sq str), Dest = (str_to_sq (substring str 2 (len -2))), Prom = (str_to_kind (substring str 4 (len -4))) }
     end
 
+fun playerStr player =
+    case player of
+	White => "White"
+      | Black  => "Black"
     
 fun enPassantToFen state =
     case state.EnPassant of
@@ -1145,7 +1149,7 @@ fun attacks piecesAll player  =
 	    peq player (piece_to_player e.Piece) (*  && keq (piece_to_kind e.Piece) Queen *)
 	    
 	val pieces = List.filter f piecesAll
-	val legals = List.mp (legalsForPieceSL pieces) pieces
+	val legals = List.mp (legalsForPieceSL piecesAll) pieces
 	val final = List.foldl List.append [] legals
     in
 	final
