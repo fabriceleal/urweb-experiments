@@ -129,95 +129,94 @@ fun fen_to_board fen =
     in
 	state_to_board state
     end
+
+fun getRoom id =
+    r <- oneRow (SELECT post.Room FROM post WHERE post.Id = {[id]});
+    return r.Post.Room
+
+fun speak id line =
+    case line of
+	SMovePiece (src, dest, kind) =>
+
+	(* TODO check if move was already played *)
 	
+	idP <- nextval positionSeq;
+	
+	row <- oneRow (SELECT post.CurrentPositionId, position.Fen
+		       FROM post JOIN position ON post.CurrentPositionId = position.Id
+		       WHERE post.Id = {[id]} );
+	
+	let
+	    val state = fen_to_state row.Position.Fen
+	    val move = {Src=src, Dest=dest, Prom = kind}
+	in		     
+	    case (doMove state move) of
+		 | None => return ()
+		 | Some manipulated =>
+		   let			     
+		       val newFen = state_to_fen manipulated
+		       val newMove = moveStr move
+		       val newMoveAlg = moveToAlgebraicClean state move manipulated
+		   in			 
+		       dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
+		       dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]},
+													  {[Some newMove]},
+													  {[Some newMoveAlg]},
+													  {[Some row.Post.CurrentPositionId]}) );
+		       
+		       room <- getRoom id;
+		       
+		       Room.send room (Position {State = (fen_to_state newFen), Id = idP, Highlight = []})
+		   end
+	end
+      | SBack =>		
+	row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
+	row2 <- oneRow (SELECT position.Id, position.Fen
+			FROM position
+			WHERE position.PostId = {[id]} AND position.Id < {[row.Post.CurrentPositionId]}
+			ORDER BY position.Id DESC LIMIT 1);
+	let
+	    val idP = row2.Position.Id
+	in
+	    dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
+	    room <- getRoom id;
+	    Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
+	end
+      | SForward =>		
+	row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
+	row2 <- oneRow (SELECT position.Id, position.Fen
+			FROM position
+			WHERE position.PostId = {[id]} AND position.Id > {[row.Post.CurrentPositionId]}
+			ORDER BY position.Id ASC LIMIT 1);
+	let
+	    val idP = row2.Position.Id
+	in
+	    dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
+	    room <- getRoom id;
+	    Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
+	end
+      | SPosition idP =>
+	row2 <- oneRow (SELECT position.Id, position.Fen
+			FROM position
+			WHERE position.PostId = {[id]} AND position.Id = {[idP]});
+	
+	dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
+	room <- getRoom id;
+	Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
+	
+      | SHighlight sq =>
+	room <- getRoom id;
+	Room.send room (Highlight sq)
+
+fun getTree id =
+    tree4 id
+    
+fun doSpeak id line =	 
+    rpc (speak id line)
+    
+    
 fun postPage id () =
-    let
-	fun getRoom () =
-	    r <- oneRow (SELECT post.Room FROM post WHERE post.Id = {[id]});
-	    return r.Post.Room
-
-	and speak line =
-	    case line of
-		SMovePiece (src, dest, kind) =>
-
-		(* TODO check if move was already played *)
-		
-		idP <- nextval positionSeq;
-		
-		row <- oneRow (SELECT post.CurrentPositionId, position.Fen
-			       FROM post JOIN position ON post.CurrentPositionId = position.Id
-			       WHERE post.Id = {[id]} );
-		
-		let
-		    val state = fen_to_state row.Position.Fen
-		    val move = {Src=src, Dest=dest, Prom = kind}
-		in		     
-		    case (doMove state move) of
-		   | None => return ()
-		   | Some manipulated =>
-		     let			     
-			 val newFen = state_to_fen manipulated
-			 val newMove = moveStr move
-			 val newMoveAlg = moveToAlgebraicClean state move manipulated
-		     in			 
-			 dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
-			 dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]},
-												   {[Some newMove]},
-												   {[Some newMoveAlg]},
-												   {[Some row.Post.CurrentPositionId]}) );
-			 
-			 room <- getRoom ();
-			 
-			 Room.send room (Position {State = (fen_to_state newFen), Id = idP, Highlight = []})
-		     end
-		end
-	      | SBack =>		
-		row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
-		row2 <- oneRow (SELECT position.Id, position.Fen
-				FROM position
-				WHERE position.PostId = {[id]} AND position.Id < {[row.Post.CurrentPositionId]}
-				ORDER BY position.Id DESC LIMIT 1);
-		let
-		    val idP = row2.Position.Id
-		in
-		  dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
-		  room <- getRoom ();
-		  Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
-		end
-	      | SForward =>		
-		row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
-		row2 <- oneRow (SELECT position.Id, position.Fen
-				FROM position
-				WHERE position.PostId = {[id]} AND position.Id > {[row.Post.CurrentPositionId]}
-				ORDER BY position.Id ASC LIMIT 1);
-		let
-		    val idP = row2.Position.Id
-		in
-		  dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
-		  room <- getRoom ();
-		  Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
-		end
-	      | SPosition idP =>
-		row2 <- oneRow (SELECT position.Id, position.Fen
-				FROM position
-				WHERE position.PostId = {[id]} AND position.Id = {[idP]});
-		
-		dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
-		room <- getRoom ();
-		Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
-		
-	      | SHighlight sq =>
-		room <- getRoom ();
-		Room.send room (Highlight sq)
-
-	and getTree () =
-	    tree4 id
-	    
-	and doSpeak line =	 
-	    rpc (speak line)
-	    
-    in
-
+   
 	current <- oneRow (SELECT post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
 			   FROM post
 			     JOIN position AS Position ON post.CurrentPositionId = Position.Id
@@ -253,7 +252,7 @@ fun postPage id () =
 						 </xml>
 		    in
 			<xml>
-			  <span class={move_clickable} onclick={fn _ => doSpeak (SPosition idP)}>
+			  <span class={move_clickable} onclick={fn _ => doSpeak id (SPosition idP)}>
 			    {[(moveToAlgebraic (fen_to_state fen) (str_to_move move) moveAlg forceAlg)]}
 			  </span>
 			  {siblingsRender}
@@ -353,7 +352,7 @@ fun postPage id () =
 				  Prom = None}
 		    in
 			set renderstate (Some st);
-			doSpeak (SMovePiece (move.Src, move.Dest, move.Prom));
+			doSpeak id (SMovePiece (move.Src, move.Dest, move.Prom));
 			return ()
 		    end
 			    
@@ -612,7 +611,7 @@ fun postPage id () =
 						 DragPiece = None,
 						 Prom = None
 						});
-				x <- rpc (getTree ());
+				x <- rpc (getTree id);
 				set pgnstate x
 			      | None => return ())
 			    
@@ -622,11 +621,7 @@ fun postPage id () =
 			handle_boardmsg s;
 			listener ()
 			    
-
 		in
-		    (*
-		    debug (sqStr {X=0,Y=0});
-		    debug (state_to_fen (fen_to_state testFen)); *)
 		    set renderstate (Some (fen_to_board current.Position.Fen));
 		    requestAnimationFrame2 drawBoard3;
 
@@ -647,8 +642,8 @@ fun postPage id () =
 	    <a link={index()}>another page</a>
 	    <a link={allPosts()}>all posts</a>
 
-	    <button value="Back" onclick={fn _ => doSpeak SBack } />
-	      <button value="Fw" onclick={fn _ => doSpeak SForward } />
+	    <button value="Back" onclick={fn _ => doSpeak id SBack } />
+	      <button value="Fw" onclick={fn _ => doSpeak id SForward } />
 
 		<a link={downloadPost id}>download</a>
 	    
@@ -659,7 +654,6 @@ fun postPage id () =
 	    </xml>
     end
     
-    end
 
 and downloadPost id =
     let
