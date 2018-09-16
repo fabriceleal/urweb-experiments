@@ -3,6 +3,8 @@ open Canvas_FFI
 open Chess
 open Bootstrap4
 
+style move_clickable
+
 type position = { Id: int, State: gamestate, Highlight: list square } 
 
 datatype boardmsg =
@@ -251,7 +253,7 @@ fun postPage id () =
 						 </xml>
 		    in
 			<xml>
-			  <span onclick={fn _ => doSpeak (SPosition idP)}>
+			  <span class={move_clickable} onclick={fn _ => doSpeak (SPosition idP)}>
 			    {[(moveToAlgebraic (fen_to_state fen) (str_to_move move) moveAlg forceAlg)]}
 			  </span>
 			  {siblingsRender}
@@ -635,7 +637,10 @@ fun postPage id () =
 	in
 	
 	return  <xml>
-	  <head><title>Post # {[id]}</title></head>
+	  <head>
+	    <title>Post # {[id]}</title>
+	    <link rel="stylesheet" type="text/css" href="/exp.css"/>
+	  </head>
 	  <body onload={loadPage ()} >
 	    <h1>{[id]} {[current.Post.Nam]}</h1>
 	    

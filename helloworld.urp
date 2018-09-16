@@ -17,8 +17,10 @@ allow mime text/plain
 allow mime application/octet-stream
 rewrite all ContentDisposition/*
 allow responseHeader Content-Disposition
-file /bootstrap.min.css rsrc/css/bootstrap.min.css
 allow url /Helloworld/allPosts
+file /exp.css rsrc/css/exp.css
+rewrite style Helloworld/move_clickable move-clickable
+file /bootstrap.min.css rsrc/css/bootstrap.min.css
 rewrite style Bootstrap4/container container
 rewrite style Bootstrap4/row row
 rewrite style Bootstrap4/col_sm_4 col_sm_4
