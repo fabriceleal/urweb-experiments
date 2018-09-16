@@ -13,14 +13,19 @@ file /WhitePawn.png fonts/merida/80/WhitePawn.png
 library ../urweb-canvas/src/canvas
 database helloworld
 sql helloworld.sql
-allow url /Helloworld/allPosts
 allow mime text/plain
 allow mime application/octet-stream
 rewrite all ContentDisposition/*
 allow responseHeader Content-Disposition
+file /bootstrap.min.css rsrc/css/bootstrap.min.css
+allow url /Helloworld/allPosts
+rewrite style Bootstrap4/container container
+rewrite style Bootstrap4/row row
+rewrite style Bootstrap4/col_sm_4 col_sm_4
 
 $/string
 $/list
+$/bootstrap/bootstrap4
 sharedboard
 chess
 pgn

@@ -8,3 +8,6 @@ val createPost : unit -> transaction page
 val allPosts : unit -> transaction page
 
 val downloadPost: int -> transaction page
+
+val testResponsive : unit -> transaction page
+			     

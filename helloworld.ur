@@ -1,6 +1,7 @@
 
 open Canvas_FFI
 open Chess
+open Bootstrap4
 
 type position = { Id: int, State: gamestate, Highlight: list square } 
 
@@ -132,10 +133,7 @@ fun postPage id () =
 	fun getRoom () =
 	    r <- oneRow (SELECT post.Room FROM post WHERE post.Id = {[id]});
 	    return r.Post.Room
-(*
-	and moveCell r =
-	    <xml>{[r.Move]}</xml>
-	    *)
+
 	and speak line =
 	    case line of
 		SMovePiece (src, dest, kind) =>
@@ -159,11 +157,7 @@ fun postPage id () =
 			 val newFen = state_to_fen manipulated
 			 val newMove = moveStr move
 			 val newMoveAlg = moveToAlgebraicClean state move manipulated
-		     in
-			 (* debug (playerStr (other manipulated.Player));
-			 debug (show (List.mp sqStr (attacks manipulated.Pieces (other manipulated.Player))));
-			 debug (show (isOwnKingAttacked manipulated));*)
-			 
+		     in			 
 			 dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
 			 dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]},
 												   {[Some newMove]},
@@ -228,7 +222,6 @@ fun postPage id () =
 			     JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
 			   WHERE post.Id = {[id]});
 
-(*	xmlMoves <- tree moveCell (Some current.Post.RootPositionId);*)
 	moveTree <- tree3 (Some current.Post.RootPositionId) current.PositionR.Fen;
 
 	pgnstate <- source moveTree;
@@ -400,32 +393,6 @@ fun postPage id () =
 				 end
 			     else
 				 handlePseudoLegalMoveUI p'' {Src={X=srcX,Y=srcY}, Dest = {X=sqX,Y=sqY}, Prom=None}
-				 
-				 (*case (doMove p''.Full {Src={X=srcX,Y=srcY}, Dest = {X=sqX,Y=sqY}, Prom=None}) of
-				     None =>
-				     let
-					 val st = {Highlight = p''.Highlight,
-						   Pieces = p''.Full.Pieces,
-						   Full = p''.Full,
-						   DragPiece = None,
-						   Prom = None}
-				     in
-					 set renderstate (Some st);
-					 return ()
-				     end
-				   | Some newState =>
-				     let
-					 val st = {Highlight = [],
-						   Pieces = newState.Pieces,
-						   Full = newState,
-						   DragPiece = None,
-						   Prom = None}
-				     in
-					 set renderstate (Some st);
-					 doSpeak (SMovePiece ({X=srcX, Y=srcY}, {X=sqX,Y=sqY}, None));
-					 return ()
-				     end*)
-			     
 			 end)
 		  | None => return ()
 			    
@@ -800,6 +767,50 @@ and addPost newPost =
     dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]},
 											{[None]}, {[None]}, {[None]} ));
     
-    redirect (bless "/Helloworld/allPosts")
+    redirect (bless "/Helloworld/allPosts") 
+(*    allPosts () *)
 
-    
+and testResponsive () =
+    return <xml>
+      <head>
+	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
+      </head>
+      <body>
+	<div class={container}>
+	  <div class={row}>
+	    <div class={col_sm_4}>
+	      <h3>game 1</h3>
+	      <canvas width={220} height={200}>
+		
+	      </canvas>
+	    </div>
+	    <div class={col_sm_4}>
+	      <h3>game 2</h3>
+	      <canvas width={220} height={200}>
+		
+	      </canvas>
+	    </div>
+	    <div class={col_sm_4}>
+	      <h3>game 3</h3>
+	      <canvas width={220} height={200}>
+		
+	      </canvas>
+	    </div>
+	    <div class={col_sm_4}>
+	      <h3>game 4</h3>
+	      <canvas width={220} height={200}>
+		
+	      </canvas>
+	    </div>
+	    <div class={col_sm_4}>
+	      <h3>game 5</h3>
+	      <canvas width={220} height={200}>
+		
+	      </canvas>
+	    </div>
+	  </div>
+	</div>
+      </body>
+    </xml>
+(*
+						    *)
