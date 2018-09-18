@@ -847,7 +847,7 @@ and testResponsive () =
       </head>
       <body>
 	<div class={container}>
-	  <div class={row}>
+	  <div class={row}> (*
 	    <div class={col_sm_4}>
 	      <h3>game 1</h3>
 	      <canvas width={220} height={200}>
@@ -877,7 +877,7 @@ and testResponsive () =
 	      <canvas width={220} height={200}>
 		
 	      </canvas>
-	    </div>
+	    </div>*)
 	  </div>
 	</div>
       </body>
