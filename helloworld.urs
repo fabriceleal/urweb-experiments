@@ -10,5 +10,6 @@ val allPosts : unit -> transaction page
 val downloadPost: int -> transaction page
 
 val testResponsive : unit -> transaction page
-			     
-			    
+			     	
+val testParse : unit -> transaction page
+		    

@@ -43,21 +43,4 @@ fun parsePgn s =
 	    (case (List.nth m.Groups 0) of
 		None => None
 	      | Some v => Some (v, ""))))
-    
-fun testParse () =
-    let
-	val r = parsePgn testPgn
-	val comp = case r of
-		       None => <xml>none</xml>
-		     | Some (s1, s2) =>
-		       <xml>
-			 <div>head: {[s1]}</div>
-			 <div>rest: {[s2]}</div>
-		       </xml>
-    in
-	return <xml>
-	  <body>
-	    {comp}
-	  </body>
-	</xml>
-    end
+   
