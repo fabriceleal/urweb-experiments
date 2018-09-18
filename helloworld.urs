@@ -11,5 +11,4 @@ val downloadPost: int -> transaction page
 
 val testResponsive : unit -> transaction page
 			     
-val uploadNewPost : unit -> transaction page
 			    

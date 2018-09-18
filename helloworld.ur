@@ -2,6 +2,7 @@
 open Canvas_FFI
 open Chess
 open Bootstrap4
+open Pgnparse
 
 style move_clickable
 
@@ -91,9 +92,6 @@ datatype pgnRoot =
 	 Root of int * string * list pgnTree
 
 
-fun uploadTree (root : pgnRoot) =
-    return ()
-    
 fun tree3 (root : option int) parentFen =
     let
 	fun recurse root fen =
@@ -657,13 +655,6 @@ fun postPage id () =
 			</xml>
     end
 
-and uploadNewPost () =
-    let
-	val tree = Root (0, startingFen, (Node(0, "", "e2e4", "", []) :: []))
-    in
-	uploadTree tree;
-	redirect (bless "/Helloworld/allPosts")
-    end
 
 and downloadPost id =
     let
