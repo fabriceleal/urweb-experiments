@@ -88,9 +88,12 @@ datatype pgnTree =
 	 Node of int * string * string * string * list pgnTree
 	 
 datatype pgnRoot =
-	 Root of int * list pgnTree
- 
+	 Root of int * string * list pgnTree
 
+
+fun uploadTree (root : pgnRoot) =
+    return ()
+    
 fun tree3 (root : option int) parentFen =
     let
 	fun recurse root fen =
@@ -108,10 +111,10 @@ fun tree3 (root : option int) parentFen =
     in
 	case root of
 	    None =>
-	    return (Root (0, []))
+	    return (Root (0, "", []))
 	  | Some root' => 
 	    ch <- recurse root parentFen;
-	    return (Root (root', ch))
+	    return (Root (root', parentFen, ch))
     end
 	(**)
 
@@ -216,420 +219,420 @@ fun doSpeak id line =
     
     
 fun postPage id () =
-   
-	current <- oneRow (SELECT post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
-			   FROM post
-			     JOIN position AS Position ON post.CurrentPositionId = Position.Id
-			     JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
-			   WHERE post.Id = {[id]});
+    
+    current <- oneRow (SELECT post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
+		       FROM post
+			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
+			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
+		       WHERE post.Id = {[id]});
 
-	moveTree <- tree3 (Some current.Post.RootPositionId) current.PositionR.Fen;
+    moveTree <- tree3 (Some current.Post.RootPositionId) current.PositionR.Fen;
 
-	pgnstate <- source moveTree;
-	renderstate <- source None;
-	mousestate <- source {RawX=0,RawY=0};
-	
-	ch <- Room.subscribe current.Post.Room;
-	c <- fresh;
-	
-	let
-	    (* TODO algebraic *)
-	    (* TODO variations, comments? *)
+    pgnstate <- source moveTree;
+    renderstate <- source None;
+    mousestate <- source {RawX=0,RawY=0};
+    
+    ch <- Room.subscribe current.Post.Room;
+    c <- fresh;
+    
+    let
+	(* TODO algebraic *)
+	(* TODO variations, comments? *)
 
-	    fun renderPgnN pgnN siblings forceAlg =
-		case pgnN of
-		    Node (idP, fen, move, moveAlg, children) =>
-		    let
-			val rest = case children of
-				       [] => <xml></xml>
-				     | a :: siblings' =>  renderPgnN a siblings' (any siblings)
+	fun renderPgnN pgnN siblings forceAlg =
+	    case pgnN of
+		Node (idP, fen, move, moveAlg, children) =>
+		let
+		    val rest = case children of
+				   [] => <xml></xml>
+				 | a :: siblings' =>  renderPgnN a siblings' (any siblings)
 
-			val siblingsRender = case siblings of
-						 [] => <xml></xml>
-					       | _ :: _ =>
-						 <xml>
-						   { List.foldl (fn rc acc => <xml>{acc} ( {renderPgnN rc [] True} )</xml>) <xml></xml> siblings}
-						 </xml>
-		    in
-			<xml>
-			  <span class={move_clickable} onclick={fn _ => doSpeak id (SPosition idP)}>
-			    {[(moveToAlgebraic (fen_to_state fen) (str_to_move move) moveAlg forceAlg)]}
-			  </span>
-			  {siblingsRender}
-			  {rest}
-			</xml>
-		    end
-		    
-	    and  renderPgn pgn =
-		case pgn of
-		    Root (_, []) =>
-		    return <xml> * </xml>
-		  | Root (_, (a :: siblings)) => 
-		    return <xml> {renderPgnN a siblings False} </xml>		
-		    
-	    and clampToBoardCoordinateX rawX =
-		trunc (float(rawX) / float(size))
-
-	    and clampToBoardCoordinateY rawY =
-		trunc (float(rawY) / float(size))
+		    val siblingsRender = case siblings of
+					     [] => <xml></xml>
+					   | _ :: _ =>
+					     <xml>
+					       { List.foldl (fn rc acc => <xml>{acc} ( {renderPgnN rc [] True} )</xml>) <xml></xml> siblings}
+					     </xml>
+		in
+		    <xml>
+		      <span class={move_clickable} onclick={fn _ => doSpeak id (SPosition idP)}>
+			{[(moveToAlgebraic (fen_to_state fen) (str_to_move move) moveAlg forceAlg)]}
+		      </span>
+		      {siblingsRender}
+		      {rest}
+		    </xml>
+		end
 		
-	    and yPromToKind y =
-		case y of
-		    0 => Some Queen
-		  | 7 => Some Queen
-		  | 1 => Some Rook
-		  | 6 => Some Rook
-		  | 2 => Some Bishop
-		  | 5 => Some Bishop
-		  | 3 => Some Knight
-		  | 4 => Some Knight
-		  | _ => None
-			 
-	    and clampToPromSq rawX rawY =
-		if rawX >= (size * 8) + offProm && rawX <= (size * 9) + offProm then		    
-		    yPromToKind (clampToBoardCoordinateY rawY)
-		else
-		    None
+	and  renderPgn pgn =
+	     case pgn of
+		 Root (_, _, []) =>
+		 return <xml> * </xml>
+	       | Root (_, _, (a :: siblings)) => 
+		 return <xml> {renderPgnN a siblings False} </xml>		
+		 
+	and clampToBoardCoordinateX rawX =
+	    trunc (float(rawX) / float(size))
 
-	    and insideQuad rawX rawY srcX srcY size =
-		rawX >= srcX && rawX <= (srcX + size) && rawY >= srcY && rawY <= (srcY + size)
-			  
-	    and mousedown e =
-		p' <- get renderstate;
-		case p' of
-		    Some p'' => 
-		    let
-			val sqX = clampToBoardCoordinateX e.OffsetX
-			val sqY = clampToBoardCoordinateY e.OffsetY
-			val f' = (pieceInSquare sqX sqY)
-			val maybepiecer = List.find f' p''.Pieces
-		    in
-			(* if we hit a square with a piece, grab that piece *)
-			case maybepiecer of
-			    None => return ()
-			  | Some piecer =>
-			    let		
-				val st : boardstate = {
-				    Highlight = [], 
-				    Pieces = (removePSquare p''.Pieces f'),
-				    Full = p''.Full,
-				    DragPiece = Some {
-				    Src = { RawX = e.OffsetX,
-					    RawY = e.OffsetY
-					  },
-				    Current = { RawX = e.OffsetX,
-						RawY = e.OffsetY
-					      },
-				    Piece = piecer.Piece
-				},
-				    Prom = None}
-			    in
-				set renderstate (Some st);
-				return ()
-			    end	
-		    end
-		  | None => return ()
+	and clampToBoardCoordinateY rawY =
+	    trunc (float(rawY) / float(size))
+	    
+	and yPromToKind y =
+	    case y of
+		0 => Some Queen
+	      | 7 => Some Queen
+	      | 1 => Some Rook
+	      | 6 => Some Rook
+	      | 2 => Some Bishop
+	      | 5 => Some Bishop
+	      | 3 => Some Knight
+	      | 4 => Some Knight
+	      | _ => None
+		     
+	and clampToPromSq rawX rawY =
+	    if rawX >= (size * 8) + offProm && rawX <= (size * 9) + offProm then		    
+		yPromToKind (clampToBoardCoordinateY rawY)
+	    else
+		None
 
-	    and handlePseudoLegalMoveUI (rstate : boardstate) (move : move) =
-		case (doMove rstate.Full move) of
-		    None =>
-		    let
-			val st = {Highlight = rstate.Highlight,
-				  Pieces = rstate.Full.Pieces,
-				  Full = rstate.Full,
-				  DragPiece = None,
-				  Prom = None}
-		    in
-			set renderstate (Some st);
-			return ()
-		    end
-		  | Some newState =>
-		    let
-			val st = {Highlight = [],
-				  Pieces = newState.Pieces,
-				  Full = newState,
-				  DragPiece = None,
-				  Prom = None}
-		    in
-			set renderstate (Some st);
-			doSpeak id (SMovePiece (move.Src, move.Dest, move.Prom));
-			return ()
-		    end
-			    
-	    and mouseup e =
-		p' <- get renderstate;
-		case p' of
-		    Some p'' =>
-		    (case p''.DragPiece of
-			 None =>
-			 (case p''.Prom of
-			      None => return ()
-			    | Some prom' => 
-			      
-			      (* detect click in promotion area *)
-			      (case (clampToPromSq e.OffsetX e.OffsetY) of
-				   None => return ()
-				 | Some p =>
-				   handlePseudoLegalMoveUI p'' {Src=prom'.Src, Dest = prom'.Dest, Prom=Some p}))
-			 
-		       | Some d =>
-			 let
-			     val sqX = clampToBoardCoordinateX e.OffsetX
-			     val sqY = clampToBoardCoordinateY e.OffsetY
-
-			     val srcX = clampToBoardCoordinateX d.Src.RawX
-			     val srcY = clampToBoardCoordinateY d.Src.RawY
-
-			 in
-			     if (requiresPromotionSq p''.Full.Pieces srcX srcY sqX sqY) then
-				 let
-				     val st = {Highlight = p''.Highlight,
-					       Pieces = p''.Full.Pieces,
-					       Full = p''.Full,
-					       DragPiece = None,
-					       Prom = Some {Src={X=srcX,Y=srcY},Dest={X=sqX,Y=sqY}}}
-				 in
-				     set renderstate (Some st);
-				     return ()
-				 end
-			     else
-				 handlePseudoLegalMoveUI p'' {Src={X=srcX,Y=srcY}, Dest = {X=sqX,Y=sqY}, Prom=None}
-			 end)
-		  | None => return ()
-			    
-
-	    and mousemove e =
-		p' <- get renderstate;
-		(case p' of
-		    None => return ()
-		  | Some p'' =>
-		    case p''.DragPiece of
-			None => return ()			
-		      | Some d => 		    
-			let
+	and insideQuad rawX rawY srcX srcY size =
+	    rawX >= srcX && rawX <= (srcX + size) && rawY >= srcY && rawY <= (srcY + size)
+								     
+	and mousedown e =
+	    p' <- get renderstate;
+	    case p' of
+		Some p'' => 
+		let
+		    val sqX = clampToBoardCoordinateX e.OffsetX
+		    val sqY = clampToBoardCoordinateY e.OffsetY
+		    val f' = (pieceInSquare sqX sqY)
+		    val maybepiecer = List.find f' p''.Pieces
+		in
+		    (* if we hit a square with a piece, grab that piece *)
+		    case maybepiecer of
+			None => return ()
+		      | Some piecer =>
+			let		
 			    val st : boardstate = {
-				Highlight = p''.Highlight,
-				Pieces = p''.Pieces,
+				Highlight = [], 
+				Pieces = (removePSquare p''.Pieces f'),
 				Full = p''.Full,
 				DragPiece = Some {
-				Src = d.Src,
-				Current = {
-				RawX = e.OffsetX,
-				RawY = e.OffsetY
-				},
-				Piece = d.Piece
+				Src = { RawX = e.OffsetX,
+					RawY = e.OffsetY
+				      },
+				Current = { RawX = e.OffsetX,
+					    RawY = e.OffsetY
+					  },
+				Piece = piecer.Piece
 				},
 				Prom = None}
 			in
 			    set renderstate (Some st);
 			    return ()
-			end);
-		set mousestate {RawX = e.OffsetX, RawY = e.OffsetY}
-			
-	    and loadPage () =
-		
+			end	
+		end
+	      | None => return ()
 
-		bk <- make_img(bless("/BlackKing.png"));
-		bq <- make_img(bless("/BlackQueen.png"));
-		br <- make_img(bless("/BlackRook.png"));
-		bb <- make_img(bless("/BlackBishop.png"));
-		bn <- make_img(bless("/BlackKnight.png"));
-		bp <- make_img(bless("/BlackPawn.png"));
-		
-		
-		wk <- make_img(bless("/WhiteKing.png"));
-		wq <- make_img(bless("/WhiteQueen.png"));
-		wr <- make_img(bless("/WhiteRook.png"));
-		wb <- make_img(bless("/WhiteBishop.png"));
-		wn <- make_img(bless("/WhiteKnight.png"));
-		wp <- make_img(bless("/WhitePawn.png"));
-		
-		
-		ctx <- getContext2d c;
-		
+	and handlePseudoLegalMoveUI (rstate : boardstate) (move : move) =
+	    case (doMove rstate.Full move) of
+		None =>
 		let
-
-		    fun paint_row0 ctx row =	    
-			fillRect ctx 0 (row * size) size size;
-			fillRect ctx (size * 2) (row * size) size size;
-			fillRect ctx (size * 4) (row * size) size size;
-			fillRect ctx (size * 6) (row * size) size size
-			
-		    and paint_row1 ctx row =	    
-			fillRect ctx (size) (row * size) size size;
-			fillRect ctx (size * 2 + size) (row * size) size size;
-			fillRect ctx (size * 4 + size) (row * size) size size;
-			fillRect ctx (size * 6 + size) (row * size) size size
-
-		    and paint_prom_sq ctx row piece ms =
-			(if (insideQuad ms.RawX ms.RawY (size * 8 + offProm) (row * size) size) then			    
-			    setFillStyle ctx promBgSel
-			else
-			    setFillStyle ctx promBg); 
-			fillRect ctx (size * 8 + offProm) (row * size) size size;
-			draw_piece_dl ctx piece (float (size * 8 + offProm)) (float (row * size))
-
-		    and paint_prom ctx pr x' =
-			case pr of
-			    Some p =>
-			    if p.Dest.Y = 0 then
-				(paint_prom_sq ctx 0 WhiteQueen x';
-				paint_prom_sq ctx 1 WhiteRook x';
-				paint_prom_sq ctx 2 WhiteBishop x';
-				paint_prom_sq ctx 3 WhiteKnight x')
-			    else
-				(paint_prom_sq ctx 4 BlackKnight x';
-				paint_prom_sq ctx 5 BlackBishop x';
-				paint_prom_sq ctx 6 BlackRook x';
-				paint_prom_sq ctx 7 BlackQueen x')
-			  | None => return ()
-					   
-		    and piece_to_id piece =
-			case piece of
-			    WhiteKing => wk
-			  | WhiteQueen => wq
-			  | WhiteRook => wr
-			  | WhiteBishop => wb
-			  | WhiteKnight => wn
-			  | WhitePawn => wp
-			  | BlackKing => bk
-			  | BlackQueen => bq
-			  | BlackRook => br
-			  | BlackBishop => bb
-			  | BlackKnight => bn
-			  | BlackPawn => bp
-
-		    and draw_piece_dl ctx piece x y =
-			drawImage2 ctx (piece_to_id piece) x y (float size) (float size)
-					 
-		    and draw_piece ctx (p : piecerec) =		    
-		    (*	drawImage2 ctx (piece_to_id p.Piece) (float (size * p.X)) (float (size * p.Y)) (float size) (float size) *)
-			draw_piece_dl ctx p.Piece (float (size * p.X)) (float (size * p.Y))
-			
-		    and draw_pieces ctx ps =
-			case ps of
-			    h :: rest =>
-			    draw_piece ctx h;
-			    draw_pieces ctx rest
-			  | _ => return ()
-
-		    and drawHighlight ctx (h : square) =
-			fillRect ctx (size * h.X) (size * h.Y) size size
-			
-		    and drawHighlights ctx hs =
-			case hs of
-			    h :: rest =>
-			    drawHighlight ctx h;
-			    drawHighlights ctx rest
-			  | _ => return ()
-
-		    and draw_piecedrag ctx pd =
-			case pd of
-			    Some pd' =>
-			    drawImage2 ctx (piece_to_id pd'.Piece) (float(pd'.Current.RawX) - (float(size) / 2.0)) (float(pd'.Current.RawY) - (float(size) / 2.0)) (float size) (float size)
-			  | _ => return ()
-				 
-		    and drawBoard ctx x x' =
-			let
-			    val hs = x.Highlight
-			    val ps = x.Pieces
-			    val pd = x.DragPiece
-			    val pr = x.Prom
-			in
-			    clearRect ctx (float 0) (float 0) (float canvasW) (float canvasH);
-			    setFillStyle ctx light;
-			    paint_row0 ctx 0;
-			    paint_row1 ctx 1;
-			    paint_row0 ctx 2;
-			    paint_row1 ctx 3;
-			    paint_row0 ctx 4;
-			    paint_row1 ctx 5;
-			    paint_row0 ctx 6;
-			    paint_row1 ctx 7;
-			    
-			    setFillStyle ctx dark;
-			    paint_row1 ctx 0;
-			    paint_row0 ctx 1;
-			    paint_row1 ctx 2;
-			    paint_row0 ctx 3;
-			    paint_row1 ctx 4;
-			    paint_row0 ctx 5;
-			    paint_row1 ctx 6;
-			    paint_row0 ctx 7;
-			    
-			    paint_prom ctx pr x';
-			    (* TODO otherwise just clear this section? *)
-
-			    setFillStyle ctx red;
-			    drawHighlights ctx hs;
-
-			    draw_pieces ctx ps;
-
-			    draw_piecedrag ctx pd;
-			    
-			    return ()
-			end
-
-		    (* TODO arrows *)
-		    and drawBoard2 ctx x x'=
-			drawBoard ctx x x'
-
-		    and drawBoard3 () =
-			x2 <- get renderstate;
-			x3 <- get mousestate;
-			case x2  of
-			    Some x => 
-			    drawBoard2 ctx x x3
-			  | _ => return ()
-
-		    and drawBoard4 () =
-			drawBoard3 ();
-			setTimeout drawBoard4 30
-
-		    and handle_boardmsg s =
-			case s of			   
-			  Highlight(sq) =>
-			    (s' <- get renderstate;
-			    case s' of
-			      | Some s'' =>
-				set renderstate (Some {
-						 Highlight = sq :: [],
-						 Pieces = s''.Pieces,
-						 Full = s''.Full,
-						 DragPiece = s''.DragPiece,
-						 Prom = None
-						})
-			      | None => return ())
-			  | Position(p) =>
-			    (s' <- get renderstate;
-			    case s' of
-			      | Some s'' =>
-				set renderstate (Some {
-						 Highlight = [],
-						 Pieces = p.State.Pieces,
-						 Full = p.State,
-						 DragPiece = None,
-						 Prom = None
-						});
-				x <- rpc (getTree id);
-				set pgnstate x
-			      | None => return ())
-			    
-			
-		    and listener () =
-			s <- recv ch;
-			handle_boardmsg s;
-			listener ()
-			    
+		    val st = {Highlight = rstate.Highlight,
+			      Pieces = rstate.Full.Pieces,
+			      Full = rstate.Full,
+			      DragPiece = None,
+			      Prom = None}
 		in
-		    set renderstate (Some (fen_to_board current.Position.Fen));
-		    requestAnimationFrame2 drawBoard3;
-
-		    listener ();
+		    set renderstate (Some st);
 		    return ()
 		end
+	      | Some newState =>
+		let
+		    val st = {Highlight = [],
+			      Pieces = newState.Pieces,
+			      Full = newState,
+			      DragPiece = None,
+			      Prom = None}
+		in
+		    set renderstate (Some st);
+		    doSpeak id (SMovePiece (move.Src, move.Dest, move.Prom));
+		    return ()
+		end
+		
+	and mouseup e =
+	    p' <- get renderstate;
+	    case p' of
+		Some p'' =>
+		(case p''.DragPiece of
+		     None =>
+		     (case p''.Prom of
+			  None => return ()
+			| Some prom' => 
+			  
+			  (* detect click in promotion area *)
+			  (case (clampToPromSq e.OffsetX e.OffsetY) of
+			       None => return ()
+			     | Some p =>
+			       handlePseudoLegalMoveUI p'' {Src=prom'.Src, Dest = prom'.Dest, Prom=Some p}))
+		     
+		   | Some d =>
+		     let
+			 val sqX = clampToBoardCoordinateX e.OffsetX
+			 val sqY = clampToBoardCoordinateY e.OffsetY
 
-	in
+			 val srcX = clampToBoardCoordinateX d.Src.RawX
+			 val srcY = clampToBoardCoordinateY d.Src.RawY
+
+		     in
+			 if (requiresPromotionSq p''.Full.Pieces srcX srcY sqX sqY) then
+			     let
+				 val st = {Highlight = p''.Highlight,
+					   Pieces = p''.Full.Pieces,
+					   Full = p''.Full,
+					   DragPiece = None,
+					   Prom = Some {Src={X=srcX,Y=srcY},Dest={X=sqX,Y=sqY}}}
+			     in
+				 set renderstate (Some st);
+				 return ()
+			     end
+			 else
+			     handlePseudoLegalMoveUI p'' {Src={X=srcX,Y=srcY}, Dest = {X=sqX,Y=sqY}, Prom=None}
+		     end)
+	      | None => return ()
+			
+
+	and mousemove e =
+	    p' <- get renderstate;
+	    (case p' of
+		 None => return ()
+	       | Some p'' =>
+		 case p''.DragPiece of
+		     None => return ()			
+		   | Some d => 		    
+		     let
+			 val st : boardstate = {
+			     Highlight = p''.Highlight,
+			     Pieces = p''.Pieces,
+			     Full = p''.Full,
+			     DragPiece = Some {
+			     Src = d.Src,
+			     Current = {
+			     RawX = e.OffsetX,
+			     RawY = e.OffsetY
+			     },
+			     Piece = d.Piece
+			     },
+			     Prom = None}
+		     in
+			 set renderstate (Some st);
+			 return ()
+		     end);
+	    set mousestate {RawX = e.OffsetX, RawY = e.OffsetY}
+	    
+	and loadPage () =
+	    
+
+	    bk <- make_img(bless("/BlackKing.png"));
+	    bq <- make_img(bless("/BlackQueen.png"));
+	    br <- make_img(bless("/BlackRook.png"));
+	    bb <- make_img(bless("/BlackBishop.png"));
+	    bn <- make_img(bless("/BlackKnight.png"));
+	    bp <- make_img(bless("/BlackPawn.png"));
+	    
+	    
+	    wk <- make_img(bless("/WhiteKing.png"));
+	    wq <- make_img(bless("/WhiteQueen.png"));
+	    wr <- make_img(bless("/WhiteRook.png"));
+	    wb <- make_img(bless("/WhiteBishop.png"));
+	    wn <- make_img(bless("/WhiteKnight.png"));
+	    wp <- make_img(bless("/WhitePawn.png"));
+	    
+	    
+	    ctx <- getContext2d c;
+	    
+	    let
+
+		fun paint_row0 ctx row =	    
+		    fillRect ctx 0 (row * size) size size;
+		    fillRect ctx (size * 2) (row * size) size size;
+		    fillRect ctx (size * 4) (row * size) size size;
+		    fillRect ctx (size * 6) (row * size) size size
+		    
+		and paint_row1 ctx row =	    
+		    fillRect ctx (size) (row * size) size size;
+		    fillRect ctx (size * 2 + size) (row * size) size size;
+		    fillRect ctx (size * 4 + size) (row * size) size size;
+		    fillRect ctx (size * 6 + size) (row * size) size size
+
+		and paint_prom_sq ctx row piece ms =
+		    (if (insideQuad ms.RawX ms.RawY (size * 8 + offProm) (row * size) size) then			    
+			 setFillStyle ctx promBgSel
+		     else
+			 setFillStyle ctx promBg); 
+		    fillRect ctx (size * 8 + offProm) (row * size) size size;
+		    draw_piece_dl ctx piece (float (size * 8 + offProm)) (float (row * size))
+
+		and paint_prom ctx pr x' =
+		    case pr of
+			Some p =>
+			if p.Dest.Y = 0 then
+			    (paint_prom_sq ctx 0 WhiteQueen x';
+			     paint_prom_sq ctx 1 WhiteRook x';
+			     paint_prom_sq ctx 2 WhiteBishop x';
+			     paint_prom_sq ctx 3 WhiteKnight x')
+			else
+			    (paint_prom_sq ctx 4 BlackKnight x';
+			     paint_prom_sq ctx 5 BlackBishop x';
+			     paint_prom_sq ctx 6 BlackRook x';
+			     paint_prom_sq ctx 7 BlackQueen x')
+		      | None => return ()
+				
+		and piece_to_id piece =
+		    case piece of
+			WhiteKing => wk
+		      | WhiteQueen => wq
+		      | WhiteRook => wr
+		      | WhiteBishop => wb
+		      | WhiteKnight => wn
+		      | WhitePawn => wp
+		      | BlackKing => bk
+		      | BlackQueen => bq
+		      | BlackRook => br
+		      | BlackBishop => bb
+		      | BlackKnight => bn
+		      | BlackPawn => bp
+
+		and draw_piece_dl ctx piece x y =
+		    drawImage2 ctx (piece_to_id piece) x y (float size) (float size)
+		    
+		and draw_piece ctx (p : piecerec) =		    
+		    (*	drawImage2 ctx (piece_to_id p.Piece) (float (size * p.X)) (float (size * p.Y)) (float size) (float size) *)
+		    draw_piece_dl ctx p.Piece (float (size * p.X)) (float (size * p.Y))
+		    
+		and draw_pieces ctx ps =
+		    case ps of
+			h :: rest =>
+			draw_piece ctx h;
+			draw_pieces ctx rest
+		      | _ => return ()
+
+		and drawHighlight ctx (h : square) =
+		    fillRect ctx (size * h.X) (size * h.Y) size size
+		    
+		and drawHighlights ctx hs =
+		    case hs of
+			h :: rest =>
+			drawHighlight ctx h;
+			drawHighlights ctx rest
+		      | _ => return ()
+
+		and draw_piecedrag ctx pd =
+		    case pd of
+			Some pd' =>
+			drawImage2 ctx (piece_to_id pd'.Piece) (float(pd'.Current.RawX) - (float(size) / 2.0)) (float(pd'.Current.RawY) - (float(size) / 2.0)) (float size) (float size)
+		      | _ => return ()
+			     
+		and drawBoard ctx x x' =
+		    let
+			val hs = x.Highlight
+			val ps = x.Pieces
+			val pd = x.DragPiece
+			val pr = x.Prom
+		    in
+			clearRect ctx (float 0) (float 0) (float canvasW) (float canvasH);
+			setFillStyle ctx light;
+			paint_row0 ctx 0;
+			paint_row1 ctx 1;
+			paint_row0 ctx 2;
+			paint_row1 ctx 3;
+			paint_row0 ctx 4;
+			paint_row1 ctx 5;
+			paint_row0 ctx 6;
+			paint_row1 ctx 7;
+			
+			setFillStyle ctx dark;
+			paint_row1 ctx 0;
+			paint_row0 ctx 1;
+			paint_row1 ctx 2;
+			paint_row0 ctx 3;
+			paint_row1 ctx 4;
+			paint_row0 ctx 5;
+			paint_row1 ctx 6;
+			paint_row0 ctx 7;
+			
+			paint_prom ctx pr x';
+			(* TODO otherwise just clear this section? *)
+
+			setFillStyle ctx red;
+			drawHighlights ctx hs;
+
+			draw_pieces ctx ps;
+
+			draw_piecedrag ctx pd;
+			
+			return ()
+		    end
+
+		(* TODO arrows *)
+		and drawBoard2 ctx x x'=
+		    drawBoard ctx x x'
+
+		and drawBoard3 () =
+		    x2 <- get renderstate;
+		    x3 <- get mousestate;
+		    case x2  of
+			Some x => 
+			drawBoard2 ctx x x3
+		      | _ => return ()
+
+		and drawBoard4 () =
+		    drawBoard3 ();
+		    setTimeout drawBoard4 30
+
+		and handle_boardmsg s =
+		    case s of			   
+			Highlight(sq) =>
+			(s' <- get renderstate;
+			 case s' of
+			    | Some s'' =>
+			      set renderstate (Some {
+					       Highlight = sq :: [],
+					       Pieces = s''.Pieces,
+					       Full = s''.Full,
+					       DragPiece = s''.DragPiece,
+					       Prom = None
+					      })
+			    | None => return ())
+		      | Position(p) =>
+			(s' <- get renderstate;
+			 case s' of
+			    | Some s'' =>
+			      set renderstate (Some {
+					       Highlight = [],
+					       Pieces = p.State.Pieces,
+					       Full = p.State,
+					       DragPiece = None,
+					       Prom = None
+					      });
+			      x <- rpc (getTree id);
+			      set pgnstate x
+			    | None => return ())
+			
+			
+		and listener () =
+		    s <- recv ch;
+		    handle_boardmsg s;
+		    listener ()
+		    
+	    in
+		set renderstate (Some (fen_to_board current.Position.Fen));
+		requestAnimationFrame2 drawBoard3;
+
+		listener ();
+		return ()
+	    end
+
+    in
 	
 	return  <xml>
 	  <head>
@@ -646,14 +649,21 @@ fun postPage id () =
 	      <button value="Fw" onclick={fn _ => doSpeak id SForward } />
 
 		<a link={downloadPost id}>download</a>
-	    
-            <canvas id={c} width={canvasW} height={canvasH} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
+		
+		<canvas id={c} width={canvasW} height={canvasH} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
 	</canvas>
 	<dyn signal={m <- signal pgnstate; renderPgn m } />
-		    </body>
-	    </xml>
+			      </body>
+			</xml>
     end
-    
+
+and uploadNewPost () =
+    let
+	val tree = Root (0, startingFen, (Node(0, "", "e2e4", "", []) :: []))
+    in
+	uploadTree tree;
+	redirect (bless "/Helloworld/allPosts")
+    end
 
 and downloadPost id =
     let
@@ -675,9 +685,9 @@ and downloadPost id =
 		
 	and  renderPgn pgn =
 	     case pgn of
-		 Root (_, []) =>
+		 Root (_, _, []) =>
 		 "*"
-	       | Root (_, (a :: siblings)) => 
+	       | Root (_, _, (a :: siblings)) => 
 		 renderPgnN a siblings False
     in
 	tree <- tree4 id;
@@ -751,6 +761,7 @@ and createPost () = return <xml>
     <form>
       <table>	
 	<tr><th>Name:</th><td><textbox{#Nam}/></td></tr>
+	<tr><th>File (optional):</th><td><upload{#Fil}/></td></tr>
 	<tr><th/><td><submit action={addPost} value="Create" /></td></tr>
       </table>
     </form>
@@ -758,16 +769,71 @@ and createPost () = return <xml>
 </xml>
 
 and addPost newPost =
-    id <- nextval postSeq;    
-    idP <- nextval positionSeq;
-    sharedboard <- Room.create;
+    let
+
+	fun importChildren id idP fen children =
+	    let
+		val state = fen_to_state fen
+		fun importChildrenAux children =
+		    case children of
+			[] => return ()
+		      | h :: t =>
+			
+			case h of
+			    Node (_, _, move, _, children2) =>
+			    let
+				val rmove = str_to_move move
+			    in
+				case (doMove state rmove) of
+				    None => return ()
+				  | Some newState => 
+				    nidP <- nextval positionSeq;
+				    let					
+					val nfen = state_to_fen newState
+					val nmove = moveStr rmove
+					val alg = moveToAlgebraicClean state rmove newState
+				    in
+					dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId )
+					     VALUES ({[nidP]}, {[id]}, {[nfen]}, {[Some nmove]}, {[Some alg]}, {[Some idP]} ));
+					importChildren id nidP nfen children2;
+					importChildrenAux t
+				    end
+			    end
+		    
+	    in
+		importChildrenAux children
+	    end
+	    
+	fun importTree id idP root =
+	    case root of
+		Root (_, fen, children) => 
+		dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[fen]},
+												    {[None]}, {[None]}, {[None]} ));
+		importChildren id idP fen children
+		
+	fun insertPost () =
+	    id <- nextval postSeq;    
+	    idP <- nextval positionSeq;
+	    sharedboard <- Room.create;
     
-    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room) VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}));
-    dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]},
-											{[None]}, {[None]}, {[None]} ));
+	    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room) VALUES ({[id]}, {[newPost.Nam]}, {[idP]},
+											 {[idP]}, {[sharedboard]}));
+
+	    (* importTree id idP (Root (0, startingFen, (Node(0, "", "e2e4", "", Node(0, "", "e7e5", "", []) :: []) :: []))); *)
+	    importTree id idP (Root (0, startingFen, [])); 
+	    
+	    redirect (bless "/Helloworld/allPosts")
     
-    redirect (bless "/Helloworld/allPosts") 
-(*    allPosts () *)
+    in
+    
+	if blobSize (fileData newPost.Fil) > 10000 then
+	    return <xml>too big</xml>
+	else
+	    insertPost ()
+	end
+    
+    
+
 
 and testResponsive () =
     return <xml>

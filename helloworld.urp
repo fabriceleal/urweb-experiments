@@ -31,5 +31,6 @@ $/bootstrap/bootstrap4
 sharedboard
 chess
 pgn
+pgnparse
 buffer
 helloworld
