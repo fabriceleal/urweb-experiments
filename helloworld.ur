@@ -71,18 +71,12 @@ type boardstate = { Highlight: list square, Pieces: list piecerec, DragPiece: op
 val startingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
  
-val light = make_rgba 239 238 240 1.0
-val dark = make_rgba 119 138 181 1.0
-val red = make_rgba 255 0 0 1.0
-val promBg = make_rgba 244 244 244 1.0
-val promBgSel = make_rgba 211 211 211 1.0
 val size = 60
 val x = 10
 val y = 10
 val offProm = 2
 val canvasW = size * 9 + offProm
 val canvasH = size * 8
-
 
 
 datatype pgnTree =
@@ -428,7 +422,8 @@ fun postPage id () =
 	    set mousestate {RawX = e.OffsetX, RawY = e.OffsetY}
 	    
 	and loadPage () =
-	    
+
+
 
 	    bk <- make_img(bless("/BlackKing.png"));
 	    bq <- make_img(bless("/BlackQueen.png"));
@@ -449,7 +444,12 @@ fun postPage id () =
 	    ctx <- getContext2d c;
 	    
 	    let
-
+		val light = make_rgba 239 238 240 1.0
+		val dark = make_rgba 119 138 181 1.0
+		val red = make_rgba 255 0 0 1.0
+		val promBg = make_rgba 244 244 244 1.0
+		val promBgSel = make_rgba 211 211 211 1.0
+				
 		fun paint_row0 ctx row =	    
 		    fillRect ctx 0 (row * size) size size;
 		    fillRect ctx (size * 2) (row * size) size size;
