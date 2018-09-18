@@ -6968,10 +6968,10 @@ time_format = "%c";
            $foldl'_unpoly_unpoly__4603
             (acc_3 ^
               " (" ^
-               ($renderPgnN__4539 x_1 None FFIC(Basis.True)) ^ ") ")
+               ($renderPgnN__4538 x_1 None FFIC(Basis.True)) ^ ") ")
             ls_0)))
                     and 
-   $renderPgnN__4539 as Helloworld/renderPgnN :
+   $renderPgnN__4538 as Helloworld/renderPgnN :
     pgnTree__4482[Default] ->
      list(pgnTree__4482[Default]) ->
       FFI(Basis.bool) -> FFI(Basis.string) =
@@ -7016,7 +7016,7 @@ time_format = "%c";
                    Some[{1 : pgnTree__4482[Default], 
                           2 : list(pgnTree__4482[Default])}]
                     {1 = a, 2 = siblings'} =>
-                    $renderPgnN__4539 a_1 siblings'_0
+                    $renderPgnN__4538 a_1 siblings'_0
                      (case siblings_8 return FFI(Basis.bool) of
                        None => FFIC(Basis.False) | 
                         Some[{1 : pgnTree__4482[Default], 
@@ -7036,7 +7036,7 @@ time_format = "%c";
            $foldl'_unpoly_unpoly__4651
             (acc_3 ^
               " (" ^
-               ($renderPgnN__4539 x_1 None FFIC(Basis.True)) ^ ") ")
+               ($renderPgnN__4538 x_1 None FFIC(Basis.True)) ^ ") ")
             ls_0)))
  
  val rec
@@ -7177,13 +7177,13 @@ time_format = "%c";
                                                FFI(Basis.sqlifyInt(idP_14))
                                                 ^ ")")) in
                                ((let _ : {} =
-                                 ($importChildren__4537 id_16 nidP_2
+                                 ($importChildren__4536 id_16 nidP_2
                                    nfen_1 children2_5 {}) in
                                  ($importChildrenAux__4565 id_17
                                    idP_16 state_15 t_11 {}))))))))))))))))))
                                                                              and
                                                                              
-   $importChildren__4537 as Helloworld/importChildren :
+   $importChildren__4536 as Helloworld/importChildren :
     FFI(Basis.int) ->
      FFI(Basis.int) ->
       FFI(Basis.string) -> list(pgnTree__4482[Default]) -> {} -> {} =
@@ -7230,7 +7230,7 @@ time_format = "%c";
                          ", NULL, NULL, " ^
                           FFI(Basis.sqlifyInt(id_2)) ^ ", NULL)")) in
                   ((let _ : {} =
-                    ($importChildren__4537 id_3 idP_2
+                    ($importChildren__4536 id_3 idP_2
                       "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
                       None {}) in
                     (write((redirect "/Helloworld/allPosts" :

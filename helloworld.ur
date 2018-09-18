@@ -822,24 +822,6 @@ and addPost newPost =
 	    insertPost ()
 	end
      
-and testParse () =
-    let
-	val r = parsePgn testPgn
-	val comp = case r of
-		       None => <xml>none</xml>
-		     | Some (s1, s2) =>
-		       <xml>
-			 <div>head: {[s1]}</div>
-			 <div>rest: {[s2]}</div>
-		       </xml>
-    in
-	return <xml>
-	  <body>
-	    {comp}
-	  </body>
-	</xml>
-    end
-
 and testResponsive () =
     return <xml>
       <head>
@@ -884,3 +866,20 @@ and testResponsive () =
     </xml>
 (*
 						    *)
+fun testParse () =
+    let
+	val r = parsePgn testPgn
+	val comp = case r of
+		       None => <xml>none</xml>
+		     | Some (s1, s2) =>
+		       <xml>
+			 <div>head: {[s1]}</div>
+			 <div>rest: {[s2]}</div>
+		       </xml>
+    in
+	return <xml>
+	  <body>
+	    {comp}
+	  </body>
+	</xml>
+    end
