@@ -210,8 +210,7 @@ fun doSpeak id line =
     rpc (speak id line)
     
     
-fun postPage id () =
-    
+fun postPage id () =    
     current <- oneRow (SELECT post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
 		       FROM post
 			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
@@ -640,13 +639,13 @@ fun postPage id () =
 	  <body onload={loadPage ()} >
 	    <h1>{[id]} {[current.Post.Nam]}</h1>
 	    
-	    <a link={index()}>another page</a>
-	    <a link={allPosts()}>all posts</a>
+(*	    <a link={index()}>another page</a> *)
+(*	    <a link={allPosts()}>all posts</a> *)
 
 	    <button value="Back" onclick={fn _ => doSpeak id SBack } />
 	      <button value="Fw" onclick={fn _ => doSpeak id SForward } />
 
-		<a link={downloadPost id}>download</a>
+	(*	<a link={downloadPost id}>download</a> *)
 		
 		<canvas id={c} width={canvasW} height={canvasH} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
 	</canvas>
@@ -656,7 +655,7 @@ fun postPage id () =
     end
 
 
-and downloadPost id =
+fun downloadPost id =
     let
 	fun renderPgnN pgnN siblings forceAlg =
 	    case pgnN of
