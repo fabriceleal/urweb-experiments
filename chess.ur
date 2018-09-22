@@ -1,4 +1,10 @@
 
+datatype pgnTree =
+	 Node of int * string * string * string * list pgnTree
+	 
+datatype pgnRoot =
+	 Root of int * string * list pgnTree
+
 datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |
 	 BlackKing | BlackQueen | BlackRook | BlackBishop | BlackKnight | BlackPawn
 

@@ -11,7 +11,6 @@ file /WhiteBishop.png fonts/merida/80/WhiteBishop.png
 file /WhiteKnight.png fonts/merida/80/WhiteKnight.png
 file /WhitePawn.png fonts/merida/80/WhitePawn.png
 library ../urweb-canvas/src/canvas
-library $/regex/lib
 database helloworld
 sql helloworld.sql
 allow mime text/plain
@@ -29,6 +28,8 @@ rewrite style Bootstrap4/col_sm_4 col_sm_4
 $/string
 $/list
 $/bootstrap/bootstrap4
+../urweb-nregex/nregex
+../urweb-nregex/nregexpgn
 sharedboard
 chess
 pgn

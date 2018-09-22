@@ -85,13 +85,6 @@ val canvasH = size * 8
 
 
 
-datatype pgnTree =
-	 Node of int * string * string * string * list pgnTree
-	 
-datatype pgnRoot =
-	 Root of int * string * list pgnTree
-
-
 fun tree3 (root : option int) parentFen =
     let
 	fun recurse root fen =
