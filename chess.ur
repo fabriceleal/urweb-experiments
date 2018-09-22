@@ -5,6 +5,18 @@ datatype pgnTree =
 datatype pgnRoot =
 	 Root of int * string * list pgnTree
 
+fun dbgTree node =
+    case node of
+	Node (_, _, _, alg, children) =>
+	alg ^ " (" ^ (List.foldr (fn n acc => (dbgTree n) ^ acc) "" children) ^ ") "
+		 
+val show_pgn_tree = mkShow dbgTree
+		 
+val show_pgn_root = mkShow (fn root =>
+			       case root of
+				   Root (_, fen, children) =>
+				   "Pgn(" ^ fen ^ ") = " ^ (List.foldr (fn n acc => (show n) ^ acc) "" children))
+
 datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |
 	 BlackKing | BlackQueen | BlackRook | BlackBishop | BlackKnight | BlackPawn
 
@@ -67,7 +79,9 @@ val pieces : list piecerec =
 				     { X= 6, Y= 7, Piece= WhiteKnight} ::
 				     { X= 7, Y= 7, Piece= WhiteRook} :: []
 *)
-    	
+
+val startingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+		 
 (* functions *)
 		 
 fun fileStr f =
@@ -93,6 +107,11 @@ fun fileToI i =
       | #"g" => 6
       | #"h" => 7
       | _ => -1
+	     
+fun rankToI snd =
+    case (read (show snd) : option int) of
+	None => -1
+      | Some s => (7 - (s - 1))
 	
 fun validSq x y = x >= 0 && x < 8 && y >= 0 && y < 8
 						       
@@ -414,15 +433,42 @@ fun pieceAt (ls : list piecerec) (f : piecerec -> bool) : option piecerec =
 	else
 	    pieceAt r f
       | [] => None
-*)
+ *)
+
+fun pieceChecks prec mx my =
+    case (mx, my) of
+	(None, None) => Some prec
+      | (Some x, None) => if prec.X = x then
+			      Some prec
+			  else
+			      None
+      | (None, Some y) => if prec.Y = y then
+			      Some prec
+			  else
+			      None
+      | (Some x, Some y) => if prec.X = x && prec.Y = y then
+				Some prec
+			    else
+				None
+
+fun piecesAt3 (ls : list piecerec) kind player mx my =
+    case ls of
+	[] => []
+      | h :: r =>
+	(case (peq player (piece_to_player h.Piece), (keq kind (piece_to_kind h.Piece))) of
+	     (True, True) =>
+	     (case (pieceChecks h mx my) of
+		  None => piecesAt3 r kind player mx my
+		| Some p => p :: (piecesAt3 r kind player mx my))	      
+	   | _ => piecesAt3 r kind player mx my)
+    
 fun pieceAtKP (ls : list piecerec) kind player : option piecerec =
     case ls of
 	h :: r =>
 	(case (peq player (piece_to_player h.Piece), (keq kind (piece_to_kind h.Piece))) of
 	    (True, True) => Some h
 	  | _ => pieceAtKP r kind player)
-      | [] => None 
-	    
+      | [] => None 	    
 	      
 fun pieceAt2 (ls : list piecerec) (x : int) (y : int) : option piecerec =
     case ls of
@@ -862,7 +908,7 @@ fun legalsForPiece state piece =
 	  | Knight => legalsKnight state.Pieces (piece_to_player piece.Piece) src
 	  | King => legalsKing state (piece_to_player piece.Piece) src
     end
-
+    
 fun allLegals state =
     let
 	fun f e =
@@ -1179,6 +1225,147 @@ fun any [a] (ls : list a) =
 	[] => False
       | _ :: _ => True
 
+fun legalsForPieceWithSrc (state : gamestate) (p : piecerec) : list move =
+    List.mp (fn e => {Dest={X=e.X,Y=e.Y},Src={X=p.X,Y=p.Y},Prom=None} ) (legalsForPiece state p)
+
+(* TODO validate alg *)
+fun pawnAlgebraicToMove (state : gamestate) (alg : string) =
+    let
+	val rawRankOrCap = (strsub alg 1)
+		      
+	val rawfile = (strsub alg (if rawRankOrCap = #"x" then
+				       2
+				   else
+				       0))
+	val rawrank = (if rawRankOrCap = #"x" then
+			   (strsub alg 3)
+		       else
+			   rawRankOrCap)
+		      
+	val file = fileToI rawfile
+	val srcFile = (if rawRankOrCap = #"x" then
+			   fileToI (strsub alg 0)
+		       else
+			   file)
+	val rank = rankToI rawrank
+		   
+	val candidates = List.foldr List.append []
+				    (List.mp (legalsForPieceWithSrc state) (piecesAt3 state.Pieces Pawn state.Player (Some srcFile) None))
+	val possibles = List.filter (fn e => e.Dest.X = file && e.Dest.Y = rank) candidates
+		
+
+	val len = List.length possibles
+    in
+	if len > 0 then
+	    case possibles of
+		h :: t => Some h
+	      | _ => None
+	else
+	    None
+    end
+
+
+fun pieceAlgebraicToMove (state : gamestate) (alg : string) =
+    let
+	val rawpiece = (strsub alg 0)
+	val mkind = case (char_to_piece rawpiece) of
+			None => None
+		      | Some kind' => Some (piece_to_kind kind')
+    in
+	case mkind of
+	    None => None
+	  | Some kind =>
+	    let
+		val rawRankOrCap = (strsub alg 1)
+		val rawfile = (strsub alg (if rawRankOrCap = #"x" then
+					       2
+					   else
+					       1))
+		val file = fileToI rawfile
+		val rawrank = (strsub alg (if rawRankOrCap = #"x" then
+					       3
+					   else
+					       2))
+		val rank = rankToI rawrank
+		val candidates = List.foldr List.append []
+					    (List.mp (legalsForPieceWithSrc state) (piecesAt3 state.Pieces kind state.Player None None))
+		val possibles = List.filter (fn e => e.Dest.X = file && e.Dest.Y = rank) candidates
+				
+
+		val len = List.length possibles
+	    in
+		
+		if len > 0 then
+		    case possibles of
+			h :: t => Some h
+		      | _ => None
+		else
+		    None
+	    end
+    end
+
+
+fun pieceDesambAlgebraicToMove (state : gamestate) (alg : string) =
+    let
+	val rawpiece = (strsub alg 0)
+	val mkind = case (char_to_piece rawpiece) of
+			None => None
+		      | Some kind' => Some (piece_to_kind kind')
+    in
+	case mkind of
+	    None => None
+	  | Some kind =>
+	    let
+		val desamb = (strsub alg 1)
+		val mx = (if (isdigit desamb) then
+			      None
+			  else
+			      Some (fileToI desamb))
+
+		val my = (if (isdigit desamb) then
+			      Some (rankToI desamb)
+			  else
+			      None)
+		
+		val rawRankOrCap = (strsub alg 2)
+		val rawfile = (strsub alg (if rawRankOrCap = #"x" then
+					       3
+					   else
+					       2))
+		val file = fileToI rawfile
+		val rawrank = (strsub alg (if rawRankOrCap = #"x" then
+					       4
+					   else
+					       3))
+		val rank = rankToI rawrank
+		val candidates = List.foldr List.append []
+					    (List.mp (legalsForPieceWithSrc state) (piecesAt3 state.Pieces kind state.Player mx my))
+		val possibles = List.filter (fn e => e.Dest.X = file && e.Dest.Y = rank) candidates
+				
+
+		val len = List.length possibles
+	    in
+		
+		if len > 0 then
+		    case possibles of
+			h :: t => Some h
+		      | _ => None
+		else
+		    None
+	    end
+    end
+    
+fun castleAlgebraicToMove (state : gamestate) (alg : string) =
+     case (getKing state) of
+	 None => None
+       | Some k => 
+	 if (strlen alg > 3) then
+	 (* long castles *)
+	     Some {Src={X=k.X,Y=k.Y}, Dest={X=k.X-(2),Y=k.Y}, Prom=None }
+	 else
+	     (* short castles *)
+	     Some {Src={X=k.X,Y=k.Y}, Dest={X=k.X+2,Y=k.Y}, Prom=None }	
+		  
 fun moveToAlgebraicClean (state : gamestate) (move : move) (nextstate: gamestate) = 
     let
 	val prec = pieceAt2 state.Pieces move.Src.X move.Src.Y

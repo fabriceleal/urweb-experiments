@@ -5,6 +5,10 @@ datatype pgnTree =
 datatype pgnRoot =
 	 Root of int * string * list pgnTree
 
+val show_pgn_tree : show pgnTree
+
+val show_pgn_root : show pgnRoot
+		 
 datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |
 	 BlackKing | BlackQueen | BlackRook | BlackBishop | BlackKnight | BlackPawn
 
@@ -29,6 +33,8 @@ type gamestate = {
      HalfMove : int,
      FullMove : int
 }
+
+val startingFen : string
 		 
 (* functions *)									  
 val piece_to_char : piece -> char
@@ -36,7 +42,9 @@ val char_to_piece : char -> option piece
 			    
 val fen_to_state : string -> gamestate
 val state_to_fen : gamestate -> string
-			
+
+val fileToI : char -> int
+val rankToI : char -> int
 
 val pieceInSquare : int -> int -> (piecerec -> bool)
 (*val pieceAt : list piecerec -> (piecerec -> bool) -> option piecerec*)
@@ -75,3 +83,9 @@ val sqStr : square -> string
 
 val playerStr : player -> string
 			  
+val pawnAlgebraicToMove :  gamestate -> string -> option move
+val pieceAlgebraicToMove :  gamestate -> string -> option move						  
+val castleAlgebraicToMove :  gamestate -> string -> option move
+val pieceDesambAlgebraicToMove :  gamestate -> string -> option move
+						    
+						   

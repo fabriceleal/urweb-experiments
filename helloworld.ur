@@ -68,7 +68,6 @@ type promstate = { Src: square, Dest: square }
 type boardstate = { Highlight: list square, Pieces: list piecerec, DragPiece: option draggingPiece,
 		    Full : gamestate, Prom: option promstate  }
 
-val startingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
  
 val light = make_rgba 239 238 240 1.0
@@ -746,6 +745,7 @@ and createPost () = return <xml>
       <table>	
 	<tr><th>Name:</th><td><textbox{#Nam}/></td></tr>
 	<tr><th>File (optional):</th><td><upload{#Fil}/></td></tr>
+	<tr><td><textarea{#Pgn}/></td></tr>
 	<tr><th/><td><submit action={addPost} value="Create" /></td></tr>
       </table>
     </form>
@@ -795,7 +795,7 @@ and addPost newPost =
 												    {[None]}, {[None]}, {[None]} ));
 		importChildren id idP fen children
 		
-	fun insertPost () =
+	fun insertPost tree =
 	    id <- nextval postSeq;    
 	    idP <- nextval positionSeq;
 	    sharedboard <- Room.create;
@@ -804,7 +804,8 @@ and addPost newPost =
 											 {[idP]}, {[sharedboard]}));
 
 	    (* importTree id idP (Root (0, startingFen, (Node(0, "", "e2e4", "", Node(0, "", "e7e5", "", []) :: []) :: []))); *)
-	    importTree id idP (Root (0, startingFen, [])); 
+
+	    importTree id idP tree; 
 	    
 	    redirect (bless "/Helloworld/allPosts")
     
@@ -813,7 +814,31 @@ and addPost newPost =
 	if blobSize (fileData newPost.Fil) > 10000 then
 	    return <xml>too big</xml>
 	else
-	    insertPost ()
+	    let
+		val tree = pgnToGame newPost.Pgn
+	    in
+		(*
+		let
+		    val m = pawnAlgebraicToMove (fen_to_state startingFen) "d4"
+		in
+		    case m of
+			None => debug "err"
+		      | Some m => debug  (moveStr m)
+		end;
+		debug (show (fileToI (strsub "d4" 0)));
+		debug (show (rankToI (strsub "d4" 1)));
+		
+		debug "==";
+		debug (newPost.Pgn);
+		debug "==";
+		 debug (show tree);
+
+		debug (show (List.length (test newPost.Pgn)));
+		debug (List.foldr (fn e acc => case e of
+						   (str, _) => str ^ acc) "" (test newPost.Pgn));
+		*)
+		insertPost tree
+	    end
 	end
     
     
