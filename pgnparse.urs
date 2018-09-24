@@ -6,3 +6,5 @@ val pgnToGame : string -> Chess.pgnRoot
 
 val test : string -> lsGroups
 		     
+val pgnsToGames : string -> list Chess.pgnRoot
+			    

@@ -717,6 +717,26 @@ and main () =
 		 </body>
 	       </xml>)
 
+and handleTestUpload r =
+    return <xml>
+      <body>
+	      {
+	       List.foldr
+		   (fn i acc => <xml><div>{[show i]} </div> {acc}</xml>) <xml></xml> (pgnsToGames (Filetext_FFI.blobAsText (fileData r.Fil))) }
+      </body>
+    </xml>
+    
+and testUpload () =
+	return <xml>
+	  <body>
+	    <form>
+	      <upload{#Fil} />
+	      <submit action={handleTestUpload} value="upload" />
+	    </form>
+	  </body>
+	  </xml>
+
+    
 and allPosts () = 
   rows <- queryX (SELECT * FROM post)
 		 (fn data => <xml>

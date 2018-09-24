@@ -27,9 +27,9 @@ fun bypassHeaders (ls : list lsGroups) : list lsGroups =
 fun test (pgn : string) : list pgnGroup =
     List.foldr List.append [] (bypassHeaders (decomposePgn pgn))
 
-fun pgnToGame (pgn : string) : pgnRoot =
+fun stringLToGame lines : pgnRoot =
     let
-	val decomposed = decomposePgn pgn
+	val decomposed = decomposePgnL lines
 				  
 	fun lsMovesToTree state (ls : list pgnGroup) : option pgnTree =
 	    case ls of
@@ -106,5 +106,49 @@ fun pgnToGame (pgn : string) : pgnRoot =
 	val moves = List.foldr List.append [] (bypassHeaders decomposed)
     in	
 	(Root (0, state_to_fen state, (optToList (lsMovesToTree state moves))))
+    end    
+
+fun pgnsToGames (pgn : string) : list pgnRoot =
+(* we will start splitting lines. after we're sure we stopped reading headers, we'll read lines until we reach more headers *)
+    let
+	fun splitUntilHeaders full =
+	    case (String.ssplit {Haystack=full, Needle= "\n"}) of
+		None =>
+		(full :: [], "")
+	      | Some (h, rest) =>
+		if (Nregex.startsWith h "[Event") then
+		    ([], full)
+		else
+		    case (splitUntilHeaders rest) of
+			(ls, rest') => (h :: ls, rest')
+	    
+	and split full =
+	    case (String.ssplit {Haystack=full, Needle= "\n"}) of
+		None =>
+		(full :: [], "")
+	      | Some (h, rest) =>
+		if (Nregex.startsWith h "[") then
+		    (case (split rest) of
+			 (ls, rest') => (h :: ls, rest'))
+		else 
+		    (case (splitUntilHeaders rest) of
+			 (ls, rest') => (h :: ls, rest'))
+	    
+	and splitGames full =
+	    case (split full) of
+		(linesGame, rest) =>
+		let
+		    val r = stringLToGame linesGame
+		in
+		    if (strlen rest) = 0 then
+			[]
+		    else
+			r :: (splitGames rest)
+		end		
+	    
+    in
+	splitGames pgn
     end
-    
+
+fun pgnToGame (pgn : string) : pgnRoot =
+    stringLToGame (Nregex.splitAllLines pgn)
