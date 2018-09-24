@@ -1,5 +1,4 @@
 
-
 helloworld.exe: *.ur *.urs *.urp
 	urweb -dbms sqlite -db helloworld.db helloworld
 
@@ -15,3 +14,6 @@ helloworld.db: helloworld.sql
 
 run: helloworld.exe
 	./helloworld.exe
+
+clean:
+	rm helloworld.exe
