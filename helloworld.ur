@@ -5,7 +5,8 @@ open Bootstrap4
 open Pgnparse
 
 style move_clickable
-
+style wrapping_span
+      
 type position = { Id: int, State: gamestate, Highlight: list square } 
 
 datatype boardmsg =
@@ -245,7 +246,7 @@ fun postPage id () =
 					     </xml>
 		in
 		    <xml>
-		      <span class={move_clickable} onclick={fn _ => doSpeak id (SPosition idP)}>
+		      <span class="move_clickable wrapping_span" onclick={fn _ => doSpeak id (SPosition idP)}>
 			{[(moveToAlgebraic (fen_to_state fen) (str_to_move move) moveAlg forceAlg)]}
 		      </span>
 		      {siblingsRender}
@@ -628,21 +629,32 @@ fun postPage id () =
 	  <head>
 	    <title>Post # {[id]}</title>
 	    <link rel="stylesheet" type="text/css" href="/exp.css"/>
+	    <link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
 	  </head>
 	  <body onload={loadPage ()} >
+	    <div class="container">
 	    <h1>{[id]} {[current.Post.Nam]}</h1>
-	    
-	    <a link={index()}>another page</a>
-	    <a link={allPosts()}>all posts</a>
 
-	    <button value="Back" onclick={fn _ => doSpeak id SBack } />
-	      <button value="Fw" onclick={fn _ => doSpeak id SForward } />
+	    <div class="row">
+	      <div class={col_sm_2}>
 
-		<a link={downloadPost id}>download</a>
+		<a link={index()}>another page</a>
+		<a link={allPosts()}>all posts</a>
 		
+		<button value="Back" onclick={fn _ => doSpeak id SBack } />
+		  <button value="Fw" onclick={fn _ => doSpeak id SForward } />
+		    <a link={downloadPost id}>download</a>
+	      </div>
+	      <div class={col_sm_6}>
 		<canvas id={c} width={canvasW} height={canvasH} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
-	</canvas>
-	<dyn signal={m <- signal pgnstate; renderPgn m } />
+	      </canvas>
+	    </div>
+	    <div class={col_sm_4}>
+	      <dyn class="wrapping-span" signal={m <- signal pgnstate; renderPgn m } />
+	    </div>
+	    </div>
+	    
+	</div>
 			      </body>
 			</xml>
     end

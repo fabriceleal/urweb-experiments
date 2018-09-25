@@ -21,10 +21,13 @@ allow responseHeader Content-Disposition
 allow url /Helloworld/allPosts
 file /exp.css rsrc/css/exp.css
 rewrite style Helloworld/move_clickable move-clickable
+rewrite style Helloworld/wrapping_span wrapping-span
 file /bootstrap.min.css rsrc/css/bootstrap.min.css
 rewrite style Bootstrap4/container container
 rewrite style Bootstrap4/row row
-rewrite style Bootstrap4/col_sm_4 col_sm_4
+rewrite style Bootstrap4/col_sm_2 col-sm-2
+rewrite style Bootstrap4/col_sm_4 col-sm-4
+rewrite style Bootstrap4/col_sm_6 col-sm-6
 
 $/string
 $/list
