@@ -720,9 +720,47 @@ and main () =
 and handleTestUpload r =
     return <xml>
       <body>
+(*	      {
+	       List.foldr
+		   (fn i acc => <xml><div>{
+
+				List.foldr (fn i2 acc2 => <xml><div>{[i2]}</div> {acc2}</xml>) <xml></xml> i
+				
+				} </div> <div>+</div> {acc}</xml>) <xml></xml> (pgnsToStrs (Filetext_FFI.blobAsText (fileData r.Fil))) }
+*)
 	      {
 	       List.foldr
 		   (fn i acc => <xml><div>{[show i]} </div> {acc}</xml>) <xml></xml> (pgnsToGames (Filetext_FFI.blobAsText (fileData r.Fil))) }
+
+(*
+	      {
+	       List.foldr
+		   (fn i acc => <xml><div>{
+
+				let
+				    val d = Nregexpgn.decomposePgnL i
+				in
+				    List.foldr (fn i2 acc2 =>
+						   <xml>
+						     <div>
+						     {
+						      List.foldr (fn i3 acc3 => <xml>
+							<div>
+							{[case i3 of
+							      (grp,tag) => (show grp) ^" " ^ (show tag)]}
+							</div>
+							{acc3}</xml>) <xml></xml> i2
+						     }
+						     </div>
+
+						     {acc2}
+						   </xml>
+					       ) <xml></xml> d
+				    
+				end
+				
+				} </div> <div>+</div> {acc}</xml>) <xml></xml> (pgnsToStrs (Filetext_FFI.blobAsText (fileData r.Fil))) }*)
+	      
       </body>
     </xml>
     
@@ -735,6 +773,7 @@ and testUpload () =
 	    </form>
 	  </body>
 	  </xml>
+
 
     
 and allPosts () = 

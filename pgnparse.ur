@@ -68,6 +68,21 @@ fun stringLToGame lines : pgnRoot =
 				    in
 					Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
 				    end))
+			| LongCastle =>
+			  (case (castleAlgebraicToMove state raw) of
+			       None =>
+			       None
+			     | Some smove =>
+			       (case doMove state smove of
+				    None => None
+				  | Some newState =>
+				    let
+					val newFen = state_to_fen newState
+					val newMove = moveStr smove
+					val newMoveAlg = moveToAlgebraicClean state smove newState
+				    in
+					Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
+				    end))
 			| Castle =>
 			  (case (castleAlgebraicToMove state raw) of
 			       None =>
@@ -108,6 +123,48 @@ fun stringLToGame lines : pgnRoot =
 	(Root (0, state_to_fen state, (optToList (lsMovesToTree state moves))))
     end    
 
+fun pgnsToStrs (pgn : string) : list (list string) =
+(* we will start splitting lines. after we're sure we stopped reading headers, we'll read lines until we reach more headers *)
+    let
+	fun splitUntilHeaders full =
+	    case (String.ssplit {Haystack=full, Needle= "\n"}) of
+		None =>
+		(full :: [], "")
+	      | Some (h, rest) =>
+		if (Nregex.startsWith h "[Event") then
+		    ([], full)
+		else
+		    case (splitUntilHeaders rest) of
+			(ls, rest') => (h :: ls, rest')
+	    
+	and split full =
+	    case (String.ssplit {Haystack=full, Needle= "\n"}) of
+		None =>
+		(full :: [], "")
+	      | Some (h, rest) =>
+		if (Nregex.startsWith h "[") then
+		    (case (split rest) of
+			 (ls, rest') => (h :: ls, rest'))
+		else 
+		    (case (splitUntilHeaders rest) of
+			 (ls, rest') => (h :: ls, rest'))
+	    
+	and splitGames (full : string) : list (list string) =
+	    case (split full) of
+		(linesGame, rest) =>
+		let
+		    val r = linesGame
+		in
+		    if (strlen rest) = 0 then
+			[]
+		    else
+			(r) :: (splitGames rest)
+		end		
+	    
+    in
+	splitGames pgn
+    end
+    
 fun pgnsToGames (pgn : string) : list pgnRoot =
 (* we will start splitting lines. after we're sure we stopped reading headers, we'll read lines until we reach more headers *)
     let
