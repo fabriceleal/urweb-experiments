@@ -650,7 +650,7 @@ fun postPage id () =
 	      </canvas>
 	    </div>
 	    <div class={col_sm_4}>
-	      <dyn class="wrapping-span" signal={m <- signal pgnstate; renderPgn m } />
+	      <dyn signal={m <- signal pgnstate; renderPgn m } />
 	    </div>
 	    </div>
 	    
