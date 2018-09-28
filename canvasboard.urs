@@ -22,7 +22,8 @@ type graphicsCtx = {
      Wb : Canvas_FFI.img,
      Wn : Canvas_FFI.img,
      Wp : Canvas_FFI.img,
-     Ctx: Canvas_FFI.canvas2d
+     Ctx: Canvas_FFI.canvas2d,
+     RenderState: source (option boardstate)
 }
 
 type boardSpec = {

@@ -42,7 +42,8 @@ type graphicsCtx = {
      Wb : img,
      Wn : img,
      Wp : img,
-     Ctx: canvas2d
+     Ctx: canvas2d,
+     RenderState: source (option boardstate)
 }
 
 type boardSpec = {
@@ -259,13 +260,12 @@ fun loadGraphics spec =
 	    setTimeout drawBoard4 30
     
     in
-	set renderstate (Some (fen_to_board testFen));
 	requestAnimationFrame2 drawBoard3;
 	
 	return {Id = spec.Id,
 		Bk = bk, Bq = bq, Br = br, Bb = bb, Bn = bn, Bp = bp,
 		Wk = wk, Wq = wq, Wr = wr, Wb = wb, Wn = wn, Wp = wp,
-		Ctx = ctx
+		Ctx = ctx, RenderState = renderstate
 	       }
     end
 	    

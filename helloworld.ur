@@ -902,6 +902,7 @@ and testCanvasStandalone size =
 	
 	fun loadPage () =
 	    gr <- loadGraphics boardSpec;
+	    set gr.RenderState (Some (fen_to_board testFen));
 	    return ()
     in
 	return <xml>
@@ -911,47 +912,67 @@ and testCanvasStandalone size =
 	</xml>
     end
 
-and testResponsive () =
+and testResponsive size =
+    i0 <- fresh;
+    i1 <- fresh;
+    i2 <- fresh;
+    i3 <- fresh;
+    i4 <- fresh;
+
+    let
+	val boardSpec0 = bSpec i0 size False
+	val boardSpec1 = bSpec i1 size False
+	val boardSpec2 = bSpec i2 size False
+	val boardSpec3 = bSpec i3 size False
+	val boardSpec4 = bSpec i4 size False
+
+	fun loadPage () =
+	    gr0 <- loadGraphics boardSpec0;
+	    gr1 <- loadGraphics boardSpec1;
+	    gr2 <- loadGraphics boardSpec2;
+	    gr3 <- loadGraphics boardSpec3;
+	    gr4 <- loadGraphics boardSpec4;
+	    
+	    set gr0.RenderState (Some (fen_to_board testFen));
+	    set gr1.RenderState (Some (fen_to_board testFen));
+	    set gr2.RenderState (Some (fen_to_board testFen));
+	    set gr3.RenderState (Some (fen_to_board testFen));
+	    set gr4.RenderState (Some (fen_to_board testFen));
+	    
+	    return ()
+    in
+    
     return <xml>
       <head>
 	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
       </head>
-      <body>
+      <body onload={loadPage ()}>
 	<div class={container}>
 	  <div class={row}>
 	    <div class={col_sm_4}>
 	      <h3>game 1</h3>
-	      <canvas width={220} height={200}>
-		
-	      </canvas>
+	      {(generateBoard boardSpec0)}
 	    </div>
 	    <div class={col_sm_4}>
 	      <h3>game 2</h3>
-	      <canvas width={220} height={200}>
-		
-	      </canvas>
+	      {(generateBoard boardSpec1)}
 	    </div>
 	    <div class={col_sm_4}>
 	      <h3>game 3</h3>
-	      <canvas width={220} height={200}>
-		
-	      </canvas>
+	      {(generateBoard boardSpec2)}
 	    </div>
 	    <div class={col_sm_4}>
 	      <h3>game 4</h3>
-	      <canvas width={220} height={200}>
-		
-	      </canvas>
+	      {(generateBoard boardSpec3)}
 	    </div>
 	    <div class={col_sm_4}>
 	      <h3>game 5</h3>
-	      <canvas width={220} height={200}>
-		
-	      </canvas>
+	      {(generateBoard boardSpec4)}
 	    </div>
 	  </div>
 	</div>
       </body>
     </xml>
+end
 (*
 						    *)
