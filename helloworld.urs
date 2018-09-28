@@ -12,4 +12,6 @@ val downloadPost: int -> transaction page
 val testResponsive : unit -> transaction page
 			     
 val testUpload : unit -> transaction page
+
+val testCanvasStandalone : int -> transaction page
 			 

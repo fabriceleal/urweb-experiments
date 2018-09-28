@@ -36,6 +36,7 @@ $/bootstrap/bootstrap4
 ../urweb-nregex/nregexpgn
 sharedboard
 chess
+canvasboard
 pgn
 pgnparse
 buffer
