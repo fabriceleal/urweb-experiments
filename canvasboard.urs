@@ -7,6 +7,7 @@ type promstate = { Src: Chess.square, Dest: Chess.square }
 type boardstate = { Highlight: list Chess.square, Pieces: list Chess.piecerec, DragPiece: option draggingPiece,
 		    Full : Chess.gamestate, Prom: option promstate  }
 
+		 
 
 type graphicsCtx = {
      Id : id,
@@ -32,15 +33,16 @@ type boardSpec = {
      OffProm : int,
      CanvasW : int,
      CanvasH : int,
-     CanMakeMoves : bool
+     CanMakeMoves : bool,
+     LoadGraphics: unit -> transaction graphicsCtx,
+     MouseMove: mouseEvent -> transaction unit,
+     MouseUp: mouseEvent -> transaction unit,
+     MouseDown: mouseEvent -> transaction unit
 }
 
-val bSpec : id -> int -> bool -> boardSpec
-
-val loadGraphics : boardSpec -> transaction graphicsCtx
-		   
+val bSpec : id -> int -> bool -> option int -> transaction boardSpec
 val generateBoard : boardSpec -> xml ([Body = (), Dyn = (), MakeForm = ()]) ([]) ([])
-			   
+				 
 val fen_to_board : string -> boardstate
 
 			     

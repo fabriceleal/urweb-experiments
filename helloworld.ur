@@ -896,13 +896,12 @@ and addPost newPost =
 
 and testCanvasStandalone size =
     i <- fresh;    
-
+    boardSpec <- bSpec i size False (Some 1);
+    
     let
-	val boardSpec = bSpec i size False
-	
 	fun loadPage () =
-	    gr <- loadGraphics boardSpec;
-	    set gr.RenderState (Some (fen_to_board testFen));
+	    gr <- boardSpec.LoadGraphics ();
+(*	    set gr.RenderState (Some (fen_to_board testFen)); *)
 	    return ()
     in
 	return <xml>
@@ -913,7 +912,7 @@ and testCanvasStandalone size =
     end
 
 and testResponsive size =
-    i0 <- fresh;
+ (*   i0 <- fresh;
     i1 <- fresh;
     i2 <- fresh;
     i3 <- fresh;
@@ -927,11 +926,11 @@ and testResponsive size =
 	val boardSpec4 = bSpec i4 size False
 
 	fun loadPage () =
-	    gr0 <- loadGraphics boardSpec0;
-	    gr1 <- loadGraphics boardSpec1;
-	    gr2 <- loadGraphics boardSpec2;
-	    gr3 <- loadGraphics boardSpec3;
-	    gr4 <- loadGraphics boardSpec4;
+	    gr0 <- boardSpec0.LoadGraphics ();
+	    gr1 <- boardSpec1.LoadGraphics ();
+	    gr2 <- boardSpec2.LoadGraphics ();
+	    gr3 <- boardSpec3.LoadGraphics ();
+	    gr4 <- boardSpec4.LoadGraphics ();
 	    
 	    set gr0.RenderState (Some (fen_to_board testFen));
 	    set gr1.RenderState (Some (fen_to_board testFen));
@@ -941,14 +940,15 @@ and testResponsive size =
 	    
 	    return ()
     in
-    
+    *)
     return <xml>
       <head>
 	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
       </head>
-      <body onload={loadPage ()}>
+      <body (* onload={loadPage ()} *)>
 	<div class={container}>
 	  <div class={row}>
+(* 
 	    <div class={col_sm_4}>
 	      <h3>game 1</h3>
 	      {(generateBoard boardSpec0)}
@@ -968,11 +968,11 @@ and testResponsive size =
 	    <div class={col_sm_4}>
 	      <h3>game 5</h3>
 	      {(generateBoard boardSpec4)}
-	    </div>
+	    </div>*)
 	  </div>
 	</div>
       </body>
     </xml>
-end
+(*end*)
 (*
 						    *)
