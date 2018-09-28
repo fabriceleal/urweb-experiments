@@ -70,7 +70,6 @@ fun bSpec id size mmoves =
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
 
 fun loadGraphics spec =    
-    pgnstate <- source (Root (0, testFen, []));
     renderstate <- source None;
     mousestate <- source {RawX=0,RawY=0};
     
@@ -262,7 +261,6 @@ fun loadGraphics spec =
     in
 	set renderstate (Some (fen_to_board testFen));
 	requestAnimationFrame2 drawBoard3;
-
 	
 	return {Id = spec.Id,
 		Bk = bk, Bq = bq, Br = br, Bb = bb, Bn = bn, Bp = bp,
@@ -274,8 +272,7 @@ fun loadGraphics spec =
 
 fun generateBoard spec = 
     <xml>
-      <canvas id={spec.Id} width={spec.CanvasW} height={spec.CanvasH}>
-	
+      <canvas id={spec.Id} width={spec.CanvasW} height={spec.CanvasH}>	
       </canvas>
     </xml>
 
