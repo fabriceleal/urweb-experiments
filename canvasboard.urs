@@ -7,8 +7,20 @@ type promstate = { Src: Chess.square, Dest: Chess.square }
 type boardstate = { Highlight: list Chess.square, Pieces: list Chess.piecerec, DragPiece: option draggingPiece,
 		    Full : Chess.gamestate, Prom: option promstate  }
 
-		 
+type position = { Id: int, State: Chess.gamestate,
+		  Highlight: list Chess.square } 
 
+datatype boardmsg =
+	 Highlight of Chess.square
+       | Position of position
+
+datatype serverboardmsg =
+	 SMovePiece of Chess.square * Chess.square * option Chess.kind
+       | SHighlight of Chess.square
+       | SBack 
+       | SForward
+       | SPosition of int
+	
 type graphicsCtx = {
      Id : id,
      Bk : Canvas_FFI.img,
@@ -40,7 +52,15 @@ type boardSpec = {
      MouseDown: mouseEvent -> transaction unit
 }
 
-val bSpec : id -> int -> bool -> option int -> transaction boardSpec
+type boardInterface = {
+     GetTree : unit -> transaction Chess.pgnRoot,
+     StartRender: unit -> option boardstate,
+     ListenerLoop: unit -> transaction unit
+}
+
+val identInterface : string -> boardInterface
+		      
+val bSpec : id -> int -> bool -> boardInterface -> transaction boardSpec
 val generateBoard : boardSpec -> xml ([Body = (), Dyn = (), MakeForm = ()]) ([]) ([])
 				 
 val fen_to_board : string -> boardstate

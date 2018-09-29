@@ -27,6 +27,11 @@ fun fen_to_board fen =
 	state_to_board state
     end
 
+type boardInterface = {
+     GetTree : unit -> transaction pgnRoot,
+     StartRender: unit -> option boardstate,
+     ListenerLoop: unit -> transaction unit
+}
      
 type graphicsCtx = {
      Id : id,
@@ -46,6 +51,21 @@ type graphicsCtx = {
      RenderState: source (option boardstate)
 }
 
+type position = { Id: int, State: gamestate,
+		  Highlight: list square } 
+
+datatype boardmsg =
+	 Highlight of square
+       | Position of position
+
+datatype serverboardmsg =
+	 SMovePiece of square * square * option kind
+       | SHighlight of square
+       | SBack 
+       | SForward
+       | SPosition of int
+		      
+		   
 type boardSpec = {
      Id: id,
      Size: int,
@@ -63,9 +83,24 @@ type boardSpec = {
 
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
 
+fun identInterface fen =
+    let
+	fun get () =
+	    return (Root (0, fen, []))
+	and stRend () =
+	    Some (fen_to_board fen)
+	and listLoop () =
+	    return ()
+    in
+	{
+	 GetTree = get,
+	 StartRender = stRend,
+	 ListenerLoop = listLoop
+	}
+    end
 
-fun bSpec id size mmoves mpostid =
-
+fun bSpec id size mmoves interf =
+    tree <- interf.GetTree ();
     renderstate <- source None;
     mousestate <- source {RawX=0,RawY=0};
     
@@ -395,7 +430,11 @@ fun bSpec id size mmoves mpostid =
 		    setTimeout drawBoard4 30
 		    
 	    in
+		set renderstate (interf.StartRender ());
+		
 		requestAnimationFrame2 drawBoard3;
+
+		interf.ListenerLoop ();
 		
 		return {Id = id,
 			Bk = bk, Bq = bq, Br = br, Bb = bb, Bn = bn, Bp = bp,
@@ -407,7 +446,8 @@ fun bSpec id size mmoves mpostid =
 	return {Id= id, Size = size, OffProm = offProm,
 		CanvasW = canvasW, CanvasH = canvasH,
 		CanMakeMoves = mmoves, LoadGraphics = loadGraphics,
-		MouseMove = mousemove, MouseUp = mouseup, MouseDown = mousedown }
+		MouseMove = mousemove, MouseUp = mouseup,
+		MouseDown = mousedown }
     end
 
     

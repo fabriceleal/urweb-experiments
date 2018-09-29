@@ -8,18 +8,6 @@ open Pgnparse
 style move_clickable
 style wrapping_span
       
-type position = { Id: int, State: gamestate, Highlight: list square } 
-
-datatype boardmsg =
-	 Highlight of square
-       | Position of position
-
-datatype serverboardmsg =
-	 SMovePiece of square * square * option kind
-       | SHighlight of square
-       | SBack 
-       | SForward
-       | SPosition of int
 
 	 
 structure Room = Sharedboard.Make(struct
@@ -52,6 +40,8 @@ table user: {Id: userId, Nam: string, Pass: string}
 		PRIMARY KEY Id
 
 cookie login : {Id: userId, Pass: string}
+
+	       
 
 fun currUser () =
     ro <- getCookie login;
@@ -190,15 +180,17 @@ fun getTree id =
     
 fun doSpeak id line =	 
     rpc (speak id line)
-    
-    
-fun postPage id () =
-    
-    current <- oneRow (SELECT post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
+
+fun getPostRow id =
+    oneRow (SELECT post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
 		       FROM post
 			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
 			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
-		       WHERE post.Id = {[id]});
+		       WHERE post.Id = {[id]})
+    
+fun postPage id () =
+    
+    current <- getPostRow id;
 
     moveTree <- tree3 (Some current.Post.RootPositionId) current.PositionR.Fen;
 
@@ -896,7 +888,7 @@ and addPost newPost =
 
 and testCanvasStandalone size =
     i <- fresh;    
-    boardSpec <- bSpec i size False (Some 1);
+    boardSpec <- bSpec i size False (identInterface testFen);
     
     let
 	fun loadPage () =
