@@ -190,6 +190,14 @@ fun getPostRow id =
 			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
 		       WHERE post.Id = {[id]})
 
+fun lsToT [s] [t] (f: s -> transaction t) (ls: list s) : transaction (list t) =
+    case ls of
+	[] => return []
+      | h :: t =>
+	h' <- (f h);
+	r' <- lsToT f t;
+	return (h' :: r')
+    
 (* TODO algebraic *)
 (* TODO variations, comments? *)
 
@@ -784,19 +792,59 @@ fun postPage id () =
 	</xml>
     end
 
+fun somePosts2 () = 
+    specs <- lsToT setupPost (2 :: 3 :: 4 :: 5 :: []);
     
-fun somePosts () =
-    current0 <- getPostRow 3;
+    let 	
+	fun loadPage () =
+	    let
+		fun listener ch f =
+		    s <- recv ch;
+		    f s;
+		    listener ch f
+
+		and loadAndSpawn l =
+		    case l of
+			[] => return ()
+		      | h :: t =>
+			(case h of
+			     (b, ch) =>
+			     gr <- b.LoadGraphics ();
+			     spawn (listener ch gr.HandleMsg);
+			     loadAndSpawn t) 
+	    in
+		loadAndSpawn specs;	
+		return ()
+	    end
+    in
+	
+	return <xml>
+	  <head>
+	    <title>Posts</title>
+	    <link rel="stylesheet" type="text/css" href="/exp.css"/>
+	    <link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
+	  </head>
+	  <body onload={loadPage ()}> 
+	    <div>
+	      { List.foldr (fn i acc => case i of
+					    (b, _) =>
+					    <xml>{generateBoard b} {acc}</xml>) <xml></xml> specs }
+	    </div>
+	  </body>
+	</xml>
+    end	(**)
+
+and setupPost id =
+    current0 <- getPostRow id;
     ch0 <- Room.subscribe current0.Post.Room;
     interf0 <- postInterface current0;
     c0 <- fresh;
-    b0 <- bSpec c0 60 True interf0;
-
-    current1 <- getPostRow 4;
-    ch1 <- Room.subscribe current1.Post.Room;
-    interf1 <- postInterface current1;
-    c1 <- fresh;
-    b1 <- bSpec c1 60 True interf1;
+    b0 <- bSpec c0 40 True interf0;
+    return (b0, ch0)
+    
+and somePosts () = 
+    (b0, ch0) <- setupPost 3;
+    (b1, ch1) <- setupPost 4;
     
     let
 	fun listener ch f =
@@ -972,6 +1020,12 @@ and allPosts () =
 	    <submit action={somePosts} value="Enter Room" />
 	  </form>
 	</table>
+	
+	<table>
+	  <form>
+	    <submit action={somePosts2} value="Enter Room 2" />
+	  </form>
+	</table>(**)
 	
       <table border=1>
 	<tr><th>Name</th><th>Actions</th></tr>
