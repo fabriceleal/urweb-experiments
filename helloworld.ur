@@ -786,13 +786,13 @@ fun postPage id () =
 
     
 fun somePosts () =
-    current0 <- getPostRow 1;
+    current0 <- getPostRow 3;
     ch0 <- Room.subscribe current0.Post.Room;
     interf0 <- postInterface current0;
     c0 <- fresh;
     b0 <- bSpec c0 60 True interf0;
 
-    current1 <- getPostRow 2;
+    current1 <- getPostRow 4;
     ch1 <- Room.subscribe current1.Post.Room;
     interf1 <- postInterface current1;
     c1 <- fresh;
