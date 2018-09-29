@@ -816,6 +816,12 @@ fun somePosts2 () =
 		loadAndSpawn specs;	
 		return ()
 	    end
+
+	and foldr' f s ls =
+	    case ls of
+		[] => s
+	      | h :: t = f h (foldr' f s t)
+	    
     in
 	
 	return <xml>
@@ -826,7 +832,7 @@ fun somePosts2 () =
 	  </head>
 	  <body onload={loadPage ()}> 
 	    <div>
-	      { List.foldr (fn i acc => case i of
+	      { foldr' (fn i acc => case i of
 					    (b, _) =>
 					    <xml>{generateBoard b} {acc}</xml>) <xml></xml> specs }
 	    </div>
