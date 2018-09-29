@@ -43,6 +43,7 @@ datatype serverboardmsg =
 		      
 type boardInterface = {
      GetTree : unit -> transaction pgnRoot,
+     GetTreeI : unit -> transaction pgnRoot,
      StartRender: unit -> option boardstate,
      ListenerLoop: source pgnRoot -> source (option boardstate) -> transaction unit,
      Speak: serverboardmsg -> transaction unit     
@@ -64,7 +65,8 @@ type graphicsCtx = {
      Wn : img,
      Wp : img,
      Ctx: canvas2d,
-     RenderState: source (option boardstate)
+     RenderState: source (option boardstate),
+     HandleMsg: boardmsg -> transaction unit
 }
 
 		      
@@ -99,6 +101,7 @@ fun identInterface fen =
     in
 	{
 	 GetTree = get,
+	 GetTreeI = get,
 	 StartRender = stRend,
 	 ListenerLoop = listLoop,
 	 Speak = speak	 
@@ -106,7 +109,7 @@ fun identInterface fen =
     end
 
 fun bSpec id size mmoves interf =
-    tree <- interf.GetTree ();
+    tree <- interf.GetTreeI ();
     renderstate <- source None;
     mousestate <- source {RawX=0,RawY=0};
     pgnstate <- source tree;
@@ -297,9 +300,38 @@ fun bSpec id size mmoves interf =
 	    
 	    ctx <- getContext2d id;
 	    
-	    let		      
+	    let
+		fun handle_boardmsg s =
+		    case s of			   
+			Highlight(sq) => 
+			(s' <- get renderstate;
+			 case s' of
+		      | Some s'' =>
+			set renderstate (Some {
+					 Highlight = sq :: [],
+					 Pieces = s''.Pieces,
+					 Full = s''.Full,
+					 DragPiece = s''.DragPiece,
+					 Prom = None
+					})
+		      | None => return ())
+		      | Position(p) => 
+			(s' <- get renderstate;		
+			 case s' of
+			| Some s'' =>
+			  set renderstate (Some {
+					   Highlight = [],
+					   Pieces = p.State.Pieces,
+					   Full = p.State,
+					   DragPiece = None,
+					   Prom = None
+					  });
+			  x <- interf.GetTree ();
+			  set pgnstate x
+			| None => return ())
+			
 		     	     
-		fun paint_row0 ctx row =	    
+		and paint_row0 ctx row =	    
 		    fillRect ctx 0 (row * size) size size;
 		    fillRect ctx (size * 2) (row * size) size size;
 		    fillRect ctx (size * 4) (row * size) size size;
@@ -435,18 +467,21 @@ fun bSpec id size mmoves interf =
 		and drawBoard4 () =
 		    drawBoard3 ();
 		    setTimeout drawBoard4 30
+
+		and listener () =
+		    return ()
 		    
 	    in
 		set renderstate (interf.StartRender ());
 		
 		requestAnimationFrame2 drawBoard3;
 
-		interf.ListenerLoop pgnstate renderstate;
+		listener ();
 		
 		return {Id = id,
 			Bk = bk, Bq = bq, Br = br, Bb = bb, Bn = bn, Bp = bp,
 			Wk = wk, Wq = wq, Wr = wr, Wb = wb, Wn = wn, Wp = wp,
-			Ctx = ctx, RenderState = renderstate }
+			Ctx = ctx, RenderState = renderstate, HandleMsg = handle_boardmsg }
 	    end
 	    
     in

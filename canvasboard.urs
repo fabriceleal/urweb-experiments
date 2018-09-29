@@ -36,7 +36,8 @@ type graphicsCtx = {
      Wn : Canvas_FFI.img,
      Wp : Canvas_FFI.img,
      Ctx: Canvas_FFI.canvas2d,
-     RenderState: source (option boardstate)
+     RenderState: source (option boardstate),
+     HandleMsg: boardmsg -> transaction unit
 }
 
 type boardSpec = {
@@ -55,6 +56,7 @@ type boardSpec = {
 
 type boardInterface = {
      GetTree : unit -> transaction Chess.pgnRoot,
+     GetTreeI : unit -> transaction Chess.pgnRoot,
      StartRender: unit -> option boardstate,
      ListenerLoop: source Chess.pgnRoot -> source (option boardstate) -> transaction unit,
      Speak: serverboardmsg -> transaction unit

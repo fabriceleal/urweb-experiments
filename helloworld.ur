@@ -184,7 +184,7 @@ fun doSpeak id line =
     rpc (speak id line)
 
 fun getPostRow id =
-    oneRow (SELECT post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
+    oneRow (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
 		       FROM post
 			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
 			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
@@ -193,68 +193,77 @@ fun getPostRow id =
 (* TODO algebraic *)
 (* TODO variations, comments? *)
 
-fun postInterface (id : int) : transaction boardInterface =
-    current <- getPostRow id;
-    ch <- Room.subscribe current.Post.Room;
-    moveTree <- tree3 (Some current.Post.RootPositionId) current.PositionR.Fen;
-    
+fun postInterface current =
     let
+	val id = current.Post.Id
+		 
 	fun getMoveTree () =	    
-	    return moveTree
-
-	and stRend () =
-	    Some (fen_to_board current.Position.Fen)
-
-
-	and handle_boardmsg s (pgnstate : source pgnRoot) (renderstate : source (option boardstate)) =
-	    case s of			   
-		Highlight(sq) => 
-		(s' <- get renderstate;
-		 case s' of
+	    rpc (getTree id)
+    in	
+	
+	moveTree <- tree3 (Some current.Post.RootPositionId) current.PositionR.Fen;
+	
+	let
+	    fun getMoveTreeI () =
+		return moveTree
+	    
+	    and stRend () =
+		Some (fen_to_board current.Position.Fen)
+(*
+	    
+	     and handle_boardmsg s (pgnstate : source pgnRoot) (renderstate : source (option boardstate)) =
+		 case s of			   
+		     Highlight(sq) => 
+		     (s' <- get renderstate;
+		      case s' of
+		      | Some s'' =>
+			set renderstate (Some {
+					 Highlight = sq :: [],
+					 Pieces = s''.Pieces,
+					 Full = s''.Full,
+					 DragPiece = s''.DragPiece,
+					 Prom = None
+					})
+		      | None => return ())
+		   | Position(p) => 
+		     (s' <- get renderstate;		
+		      case s' of
 			| Some s'' =>
 			  set renderstate (Some {
-					   Highlight = sq :: [],
-					   Pieces = s''.Pieces,
-					   Full = s''.Full,
-					   DragPiece = s''.DragPiece,
+					   Highlight = [],
+					   Pieces = p.State.Pieces,
+					   Full = p.State,
+					   DragPiece = None,
 					   Prom = None
-					  })
+					  });
+			  x <- getMoveTree ();
+			  set pgnstate x
 			| None => return ())
-	      | Position(p) => 
-		(s' <- get renderstate;		
-		 case s' of
-			  | Some s'' =>
-			    set renderstate (Some {
-					     Highlight = [],
-					     Pieces = p.State.Pieces,
-					     Full = p.State,
-					     DragPiece = None,
-					     Prom = None
-					    });
-			    x <- rpc (getTree id);
-			    set pgnstate x
-			  | None => return ())
+		     
+
+	     and listener (pgnstate : source pgnRoot) (renderstate : source (option boardstate)) =
+		 s <- recv ch;
+		 handle_boardmsg s pgnstate renderstate;
+		 listener pgnstate renderstate 
+	    *)
 		
-
-	and listener (pgnstate : source pgnRoot) (renderstate : source (option boardstate)) =
-	    s <- recv ch;
-	    handle_boardmsg s pgnstate renderstate;
-	    listener pgnstate renderstate 
-
-	and listener _ _ =
-	    return ()
-	    
-	and speakMsg s =
-	    doSpeak id s
+	    and listener _ _ =
+		return ()
+		
+	    and speakMsg s =
+		doSpeak id s
 
 
-    in
-	return {
-	GetTree = getMoveTree,
-	StartRender = stRend,
-	ListenerLoop = listener,
-	Speak = speakMsg
-	}
+	in
+	    return {
+	    GetTree = getMoveTree,
+	    GetTreeI = getMoveTreeI,
+	    StartRender = stRend,
+	    ListenerLoop = listener,
+	    Speak = speakMsg(*,
+	    Channel = ch *)
+	    }
+	end
     end
 
 (*    
@@ -743,19 +752,77 @@ fun  generateViewer' id (pgnstate : source pgnRoot) =
 
     
 fun postPage id () =
-    interf <- postInterface id;
-    c <- fresh;
-    b <- bSpec c 60 True interf;
+    current0 <- getPostRow id;
+    ch0 <- Room.subscribe current0.Post.Room;
+    interf0 <- postInterface current0;
+    c0 <- fresh;
+    b0 <- bSpec c0 60 True interf0;
 
     let
+	fun listener ch f =
+	    s <- recv ch;
+	    f s;
+	    listener ch f
+
 	fun loadPage () =
-	    gr <- b.LoadGraphics ();
+	    gr0 <- b0.LoadGraphics ();
+	    listener ch0 gr0.HandleMsg;
 	    return ()
     in
 	return <xml>
+	  <head>
+	    <title>Post # {[id]}</title>
+	    <link rel="stylesheet" type="text/css" href="/exp.css"/>
+	    <link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
+	  </head>
 	  <body onload={loadPage ()}>
-	    {(generateBoard b)}
-	    {(generateViewer' id b.PgnState)}
+	    <div>
+	      {(generateBoard b0)}
+	      {(generateViewer' id b0.PgnState)}
+	    </div>
+	  </body>
+	</xml>
+    end
+
+    
+fun somePosts () =
+    current0 <- getPostRow 1;
+    ch0 <- Room.subscribe current0.Post.Room;
+    interf0 <- postInterface current0;
+    c0 <- fresh;
+    b0 <- bSpec c0 60 True interf0;
+
+    current1 <- getPostRow 2;
+    ch1 <- Room.subscribe current1.Post.Room;
+    interf1 <- postInterface current1;
+    c1 <- fresh;
+    b1 <- bSpec c1 60 True interf1;
+    
+    let
+	fun listener ch f =
+	    s <- recv ch;
+	    debug "msg received";
+	    f s;
+	    listener ch f
+
+	fun loadPage () =
+	    gr0 <- b0.LoadGraphics ();
+	    gr1 <- b1.LoadGraphics ();
+	    listener ch0 gr0.HandleMsg;
+	    listener ch1 gr1.HandleMsg;
+	    return ()
+    in
+	return <xml>
+	  <head>
+	    <title>Posts</title>
+	    <link rel="stylesheet" type="text/css" href="/exp.css"/>
+	    <link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
+	  </head>
+	  <body onload={loadPage ()}>
+	    <div>
+	      {(generateBoard b0)}
+	      {(generateBoard b1)}
+	    </div>
 	  </body>
 	</xml>
     end
@@ -901,6 +968,12 @@ and allPosts () =
 		 </tr></xml>);
     return <xml>
       <body>
+	<table>
+	  <form>
+	    <submit action={somePosts} value="Enter Room" />
+	  </form>
+	</table>
+	
       <table border=1>
 	<tr><th>Name</th><th>Actions</th></tr>
 	{rows}
@@ -1030,6 +1103,26 @@ and testCanvasStandalone size =
 	</xml>
     end
 
+and testResponsive2 size =
+    i0 <- fresh;
+    i1 <- fresh;
+    boardSpec0 <- bSpec i0 size False (identInterface testFen);
+    boardSpec1 <- bSpec i1 size False (identInterface testFen);
+    
+    let
+	fun loadPage () =
+	    gr <- boardSpec0.LoadGraphics ();
+	    gr <- boardSpec1.LoadGraphics ();
+	    return ()
+    in
+	return <xml>
+	  <body onload={loadPage ()}>
+	    {(generateBoard boardSpec0)}
+	    {(generateBoard boardSpec1)}
+	  </body>
+	</xml>
+    end
+    
 and testResponsive size =
  (*   i0 <- fresh;
     i1 <- fresh;
