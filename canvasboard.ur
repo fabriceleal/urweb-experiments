@@ -468,16 +468,12 @@ fun bSpec id size mmoves interf =
 		    drawBoard3 ();
 		    setTimeout drawBoard4 30
 
-		and listener () =
-		    return ()
 		    
 	    in
 		set renderstate (interf.StartRender ());
 		
 		requestAnimationFrame2 drawBoard3;
 
-		listener ();
-		
 		return {Id = id,
 			Bk = bk, Bq = bq, Br = br, Bb = bb, Bn = bn, Bp = bp,
 			Wk = wk, Wq = wq, Wr = wr, Wb = wb, Wn = wn, Wp = wp,

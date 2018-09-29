@@ -801,15 +801,14 @@ fun somePosts () =
     let
 	fun listener ch f =
 	    s <- recv ch;
-	    debug "msg received";
 	    f s;
 	    listener ch f
 
 	fun loadPage () =
 	    gr0 <- b0.LoadGraphics ();
 	    gr1 <- b1.LoadGraphics ();
-	    listener ch0 gr0.HandleMsg;
-	    listener ch1 gr1.HandleMsg;
+	    spawn (listener ch0 gr0.HandleMsg);
+	    spawn (listener ch1 gr1.HandleMsg);
 	    return ()
     in
 	return <xml>
