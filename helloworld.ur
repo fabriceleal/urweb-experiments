@@ -187,7 +187,70 @@ fun getPostRow id =
 			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
 			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
 		       WHERE post.Id = {[id]})
+
+(* TODO algebraic *)
+(* TODO variations, comments? *)
+
+fun postInterface (id : int) : transaction boardInterface =
+    current <- getPostRow id;
+    ch <- Room.subscribe current.Post.Room;
+    moveTree <- tree3 (Some current.Post.RootPositionId) current.PositionR.Fen;
     
+    let
+	fun get () =	    
+	    return moveTree
+
+	and stRend () =
+	    Some (fen_to_board current.Position.Fen)
+
+	    (*
+	and handle_boardmsg s (pgnstate : source pgnRoot) (renderstate : source (option gamestate)) =
+	    case s of			   
+		Highlight(sq) =>
+		(s' <- get renderstate;
+		 case s' of
+			  | Some s'' =>
+			    set renderstate (Some {
+					     Highlight = sq :: [],
+					     Pieces = s''.Pieces,
+					     Full = s''.Full,
+					     DragPiece = s''.DragPiece,
+					     Prom = None
+					    })
+			  | None => return ())
+	      | Position(p) =>
+		(s' <- get renderstate;
+		 case s' of
+			  | Some s'' =>
+			    set renderstate (Some {
+					     Highlight = [],
+					     Pieces = p.State.Pieces,
+					     Full = p.State,
+					     DragPiece = None,
+					     Prom = None
+					    });
+			    x <- rpc (getTree id);
+			    set pgnstate x
+			  | None => return ())
+		
+
+	and listener (pgnstate : source pgnRoot) (renderstate : source (option boardstate)) =
+	    s <- recv ch;
+	    handle_boardmsg s pgnstate renderstate;
+	    listener pgnstate renderstate *)
+
+	and listener _ _ =
+	    return ()
+
+    in
+	return {
+	GetTree = get,
+	StartRender = stRend,
+	ListenerLoop = listener
+	}
+    end
+
+(*    
 fun postPage id () =
     
     current <- getPostRow id;
@@ -202,8 +265,6 @@ fun postPage id () =
     c <- fresh;
     
     let
-	(* TODO algebraic *)
-	(* TODO variations, comments? *)
 
 	fun renderPgnN pgnN siblings forceAlg =
 	    case pgnN of
@@ -632,8 +693,25 @@ fun postPage id () =
 			      </body>
 			</xml>
     end
+*)
 
+fun postPage id () =
+    interf <- postInterface id;
+    c <- fresh;
+    b <- bSpec c 60 True interf;
 
+    let
+	fun loadPage () =
+	    gr <- b.LoadGraphics ();
+	    return ()
+    in
+	return <xml>
+	  <body onload={loadPage ()}>
+	    {(generateBoard b)}
+	  </body>
+	</xml>
+    end
+     
 and downloadPost id =
     let
 	fun renderPgnN pgnN siblings forceAlg =
@@ -884,7 +962,9 @@ and addPost newPost =
 		*)
 		insertPost tree
 	    end
-	end
+    end
+
+    
 
 and testCanvasStandalone size =
     i <- fresh;    
@@ -893,7 +973,6 @@ and testCanvasStandalone size =
     let
 	fun loadPage () =
 	    gr <- boardSpec.LoadGraphics ();
-(*	    set gr.RenderState (Some (fen_to_board testFen)); *)
 	    return ()
     in
 	return <xml>

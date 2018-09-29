@@ -55,7 +55,7 @@ type boardSpec = {
 type boardInterface = {
      GetTree : unit -> transaction Chess.pgnRoot,
      StartRender: unit -> option boardstate,
-     ListenerLoop: unit -> transaction unit
+     ListenerLoop: source Chess.pgnRoot -> source (option boardstate) -> transaction unit
 }
 
 val identInterface : string -> boardInterface

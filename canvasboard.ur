@@ -30,9 +30,10 @@ fun fen_to_board fen =
 type boardInterface = {
      GetTree : unit -> transaction pgnRoot,
      StartRender: unit -> option boardstate,
-     ListenerLoop: unit -> transaction unit
+     ListenerLoop: source pgnRoot -> source (option boardstate) -> transaction unit
 }
-     
+
+
 type graphicsCtx = {
      Id : id,
      Bk : img,
@@ -89,7 +90,7 @@ fun identInterface fen =
 	    return (Root (0, fen, []))
 	and stRend () =
 	    Some (fen_to_board fen)
-	and listLoop () =
+	and listLoop _ _ =
 	    return ()
     in
 	{
@@ -103,6 +104,7 @@ fun bSpec id size mmoves interf =
     tree <- interf.GetTree ();
     renderstate <- source None;
     mousestate <- source {RawX=0,RawY=0};
+    pgnstate <- source tree;
     
     let
 	val offProm = 2
@@ -434,7 +436,7 @@ fun bSpec id size mmoves interf =
 		
 		requestAnimationFrame2 drawBoard3;
 
-		interf.ListenerLoop ();
+		interf.ListenerLoop pgnstate renderstate;
 		
 		return {Id = id,
 			Bk = bk, Bq = bq, Br = br, Bb = bb, Bn = bn, Bp = bp,
