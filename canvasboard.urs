@@ -49,19 +49,24 @@ type boardSpec = {
      LoadGraphics: unit -> transaction graphicsCtx,
      MouseMove: mouseEvent -> transaction unit,
      MouseUp: mouseEvent -> transaction unit,
-     MouseDown: mouseEvent -> transaction unit
+     MouseDown: mouseEvent -> transaction unit,
+     PgnState : source Chess.pgnRoot
 }
 
 type boardInterface = {
      GetTree : unit -> transaction Chess.pgnRoot,
      StartRender: unit -> option boardstate,
-     ListenerLoop: source Chess.pgnRoot -> source (option boardstate) -> transaction unit
+     ListenerLoop: source Chess.pgnRoot -> source (option boardstate) -> transaction unit,
+     Speak: serverboardmsg -> transaction unit
 }
 
 val identInterface : string -> boardInterface
 		      
 val bSpec : id -> int -> bool -> boardInterface -> transaction boardSpec
 val generateBoard : boardSpec -> xml ([Body = (), Dyn = (), MakeForm = ()]) ([]) ([])
+(*
+val generateViewer : boardSpec -> boardInterface -> xml ([Body = (), Dyn = (), MakeForm = ()]) ([]) ([])
+*)
 				 
 val fen_to_board : string -> boardstate
 

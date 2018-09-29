@@ -101,6 +101,8 @@ fun getRoom id =
     r <- oneRow (SELECT post.Room FROM post WHERE post.Id = {[id]});
     return r.Post.Room
 
+
+
 fun speak id line =
     case line of
 	SMovePiece (src, dest, kind) =>
@@ -197,29 +199,29 @@ fun postInterface (id : int) : transaction boardInterface =
     moveTree <- tree3 (Some current.Post.RootPositionId) current.PositionR.Fen;
     
     let
-	fun get () =	    
+	fun getMoveTree () =	    
 	    return moveTree
 
 	and stRend () =
 	    Some (fen_to_board current.Position.Fen)
 
-	    (*
-	and handle_boardmsg s (pgnstate : source pgnRoot) (renderstate : source (option gamestate)) =
+
+	and handle_boardmsg s (pgnstate : source pgnRoot) (renderstate : source (option boardstate)) =
 	    case s of			   
-		Highlight(sq) =>
+		Highlight(sq) => 
 		(s' <- get renderstate;
 		 case s' of
-			  | Some s'' =>
-			    set renderstate (Some {
-					     Highlight = sq :: [],
-					     Pieces = s''.Pieces,
-					     Full = s''.Full,
-					     DragPiece = s''.DragPiece,
-					     Prom = None
-					    })
-			  | None => return ())
-	      | Position(p) =>
-		(s' <- get renderstate;
+			| Some s'' =>
+			  set renderstate (Some {
+					   Highlight = sq :: [],
+					   Pieces = s''.Pieces,
+					   Full = s''.Full,
+					   DragPiece = s''.DragPiece,
+					   Prom = None
+					  })
+			| None => return ())
+	      | Position(p) => 
+		(s' <- get renderstate;		
 		 case s' of
 			  | Some s'' =>
 			    set renderstate (Some {
@@ -237,16 +239,21 @@ fun postInterface (id : int) : transaction boardInterface =
 	and listener (pgnstate : source pgnRoot) (renderstate : source (option boardstate)) =
 	    s <- recv ch;
 	    handle_boardmsg s pgnstate renderstate;
-	    listener pgnstate renderstate *)
+	    listener pgnstate renderstate 
 
 	and listener _ _ =
 	    return ()
+	    
+	and speakMsg s =
+	    doSpeak id s
+
 
     in
 	return {
-	GetTree = get,
+	GetTree = getMoveTree,
 	StartRender = stRend,
-	ListenerLoop = listener
+	ListenerLoop = listener,
+	Speak = speakMsg
 	}
     end
 
@@ -695,6 +702,46 @@ fun postPage id () =
     end
 *)
 
+fun  generateViewer' id (pgnstate : source pgnRoot) =
+     let
+	 fun renderPgnN pgnN siblings forceAlg =
+	     case pgnN of
+		 Node (idP, fen, move, moveAlg, children) =>
+		 let
+		     val rest = case children of
+				    [] => <xml></xml>
+				  | a :: siblings' =>  renderPgnN a siblings' (any siblings)
+
+		     val siblingsRender = case siblings of
+					      [] => <xml></xml>
+					    | _ :: _ =>
+					      <xml>
+						{ List.foldl (fn rc acc => <xml>{acc} ( {renderPgnN rc [] True} )</xml>) <xml></xml> siblings}
+					      </xml>
+		 in
+		     <xml>
+		       <span class="move_clickable wrapping_span" onclick={fn _ => doSpeak id (SPosition idP)}>
+			 {[(moveToAlgebraic (fen_to_state fen) (str_to_move move) moveAlg forceAlg)]}
+		       </span>
+		       {siblingsRender}
+		       {rest}
+		     </xml>
+		 end
+		 
+	 and  renderPgn pgn =
+	      case pgn of
+		  Root (_, _, []) =>
+		  return <xml> * </xml>
+		| Root (_, _, (a :: siblings)) => 
+		  return <xml> {renderPgnN a siblings False} </xml>		
+     in
+	 <xml>
+	   <dyn signal={m <- signal pgnstate; renderPgn m } />
+	 </xml> 
+     (* renderPgn pgnstate*)
+     end
+
+    
 fun postPage id () =
     interf <- postInterface id;
     c <- fresh;
@@ -708,6 +755,7 @@ fun postPage id () =
 	return <xml>
 	  <body onload={loadPage ()}>
 	    {(generateBoard b)}
+	    {(generateViewer' id b.PgnState)}
 	  </body>
 	</xml>
     end

@@ -27,10 +27,25 @@ fun fen_to_board fen =
 	state_to_board state
     end
 
+type position = { Id: int, State: gamestate,
+		  Highlight: list square }
+		
+datatype boardmsg =
+	 Highlight of square
+       | Position of position
+		     
+datatype serverboardmsg =
+	 SMovePiece of square * square * option kind
+       | SHighlight of square
+       | SBack 
+       | SForward
+       | SPosition of int
+		      
 type boardInterface = {
      GetTree : unit -> transaction pgnRoot,
      StartRender: unit -> option boardstate,
-     ListenerLoop: source pgnRoot -> source (option boardstate) -> transaction unit
+     ListenerLoop: source pgnRoot -> source (option boardstate) -> transaction unit,
+     Speak: serverboardmsg -> transaction unit     
 }
 
 
@@ -52,19 +67,6 @@ type graphicsCtx = {
      RenderState: source (option boardstate)
 }
 
-type position = { Id: int, State: gamestate,
-		  Highlight: list square } 
-
-datatype boardmsg =
-	 Highlight of square
-       | Position of position
-
-datatype serverboardmsg =
-	 SMovePiece of square * square * option kind
-       | SHighlight of square
-       | SBack 
-       | SForward
-       | SPosition of int
 		      
 		   
 type boardSpec = {
@@ -77,9 +79,9 @@ type boardSpec = {
      LoadGraphics : unit -> transaction graphicsCtx,
      MouseMove : mouseEvent -> transaction unit,
      MouseDown : mouseEvent -> transaction unit,
-     MouseUp : mouseEvent -> transaction unit
+     MouseUp : mouseEvent -> transaction unit,
+     PgnState : source pgnRoot
 }
-
 		 
 
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
@@ -92,11 +94,14 @@ fun identInterface fen =
 	    Some (fen_to_board fen)
 	and listLoop _ _ =
 	    return ()
+	and speak _ =
+	    return ()
     in
 	{
 	 GetTree = get,
 	 StartRender = stRend,
-	 ListenerLoop = listLoop
+	 ListenerLoop = listLoop,
+	 Speak = speak	 
 	}
     end
 
@@ -199,7 +204,7 @@ fun bSpec id size mmoves interf =
 			      Prom = None}
 		in
 		    set renderstate (Some st);
-(*		    doSpeak id (SMovePiece (move.Src, move.Dest, move.Prom));*)
+		    interf.Speak (SMovePiece (move.Src, move.Dest, move.Prom));
 		    return ()
 		end
 		
@@ -449,14 +454,19 @@ fun bSpec id size mmoves interf =
 		CanvasW = canvasW, CanvasH = canvasH,
 		CanMakeMoves = mmoves, LoadGraphics = loadGraphics,
 		MouseMove = mousemove, MouseUp = mouseup,
-		MouseDown = mousedown }
+		MouseDown = mousedown, PgnState = pgnstate }
     end
 
     
 fun generateBoard spec =
     <xml>
-      <canvas id={spec.Id} width={spec.CanvasW} height={spec.CanvasH}>	
+      <canvas id={spec.Id} width={spec.CanvasW} height={spec.CanvasH} onmousemove={spec.MouseMove} onmousedown={spec.MouseDown} onmouseup={spec.MouseUp}>	
       </canvas>
     </xml>
 
-    
+(*
+fun generateViewer spec interf =
+    <xml>
+      <dyn signal={m <- signal spec.PgnState; interf.RenderPgn m } />
+    </xml>
+*)
