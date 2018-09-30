@@ -12,6 +12,7 @@ file /WhiteKnight.png fonts/merida/80/WhiteKnight.png
 file /WhitePawn.png fonts/merida/80/WhitePawn.png
 library ../urweb-canvas/src/canvas
 library ../urweb-filetext/filetext_FFI
+library ../urweb-nmarkdown/nmarkdown
 database dbname=helloworld
 sql helloworld.sql
 allow mime text/plain

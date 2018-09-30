@@ -792,6 +792,8 @@ fun postPage id () =
 	</xml>
     end
 
+(* this compiles when not referenced and shows weird errors when referenced *)
+(*
 fun somePosts2 () = 
     specs <- lsToT setupPost (2 :: 3 :: 4 :: 5 :: []);
     
@@ -820,7 +822,7 @@ fun somePosts2 () =
 	and foldr' f s ls =
 	    case ls of
 		[] => s
-	      | h :: t = f h (foldr' f s t)
+	      | h :: t => f h (foldr' f s t)
 	    
     in
 	
@@ -838,7 +840,7 @@ fun somePosts2 () =
 	    </div>
 	  </body>
 	</xml>
-    end	(**)
+    end	*)
 
 and setupPost id =
     current0 <- getPostRow id;
@@ -879,6 +881,7 @@ and somePosts () =
 	  </body>
 	</xml>
     end
+
      
 and downloadPost id =
     let
@@ -910,6 +913,7 @@ and downloadPost id =
 		  ("attachment; filename=post_" ^ (show id) ^ ".pgn");
 	returnBlob (textBlob (renderPgn tree)) (blessMime "application/octet-stream")
     end
+
      
 and index () = return <xml>
   <body>index
@@ -1026,12 +1030,12 @@ and allPosts () =
 	    <submit action={somePosts} value="Enter Room" />
 	  </form>
 	</table>
-	
+	(*
 	<table>
 	  <form>
 	    <submit action={somePosts2} value="Enter Room 2" />
 	  </form>
-	</table>(**)
+	</table>*)
 	
       <table border=1>
 	<tr><th>Name</th><th>Actions</th></tr>
