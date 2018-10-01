@@ -3,7 +3,8 @@ open Canvas_FFI
 open Chess
 open Bootstrap4
 open Pgnparse
-
+open Canvasboard
+     
 style move_clickable
 style wrapping_span
       
@@ -227,9 +228,7 @@ fun postPage id () =
     c <- fresh;
     
     let
-	(* TODO algebraic *)
-	(* TODO variations, comments? *)
-
+	
 	fun renderPgnN pgnN siblings forceAlg =
 	    case pgnN of
 		Node (idP, fen, move, moveAlg, children) =>
@@ -788,7 +787,7 @@ and testUpload () =
 
 
     
-and allPosts () = 
+and allPosts () =  (*
   rows <- queryX (SELECT * FROM post)
 		 (fn data => <xml>
 		   <tr>
@@ -798,11 +797,28 @@ and allPosts () =
 			 <submit action={postPage data.Post.Id} value="Enter"/>
 		       </form>
 		     </td>
-		 </tr></xml>);
+		 </tr></xml>);*)
+
+    rows <- query (SELECT * FROM post)
+		  (fn data acc =>		      
+		      cid <- fresh;
+		      board <- generate_board cid;
+		      return <xml>{acc}<tr>
+			<td>{[data.Post.Nam]}</td>
+			<td>{board}</td>
+		     <td>
+		       <form>
+			 <submit action={postPage data.Post.Id} value="Enter"/>
+		       </form>
+		     </td>
+		      </tr>
+		      </xml>)
+		  <xml/>;
+    
     return <xml>
       <body>
       <table border=1>
-	<tr><th>Name</th><th>Actions</th></tr>
+	<tr><th>Name</th><th>Board</th><th>Actions</th></tr>
 	{rows}
       </table>
 
