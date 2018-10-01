@@ -20,7 +20,14 @@ type promstate = { Src: square, Dest: square }
 	      
 type boardstate = { Highlight: list square, Pieces: list piecerec, DragPiece: option draggingPiece,
 		    Full : gamestate, Prom: option promstate  }
-		 
+		  
+datatype serverboardmsg =
+	 SMovePiece of square * square * option kind
+       | SHighlight of square
+       | SBack 
+       | SForward
+       | SPosition of int
+		      
 fun state_to_board state =
     { Highlight = [], Full = state, Pieces=state.Pieces, DragPiece = None, Prom = None}
 	
@@ -30,11 +37,11 @@ fun fen_to_board fen =
     in
 	state_to_board state
     end
-
+(*
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
-
+*)
 		  
-fun generate_board c size =
+fun generate_board testFen c size getTree doSpeak ch =
     rctx <- source None;
     pgnstate <- source (Root (0, "", []));
     renderstate <- source None;
@@ -47,6 +54,7 @@ fun generate_board c size =
 	val red = make_rgba 255 0 0 1.0
 	val promBg = make_rgba 244 244 244 1.0
 	val promBgSel = make_rgba 211 211 211 1.0 *)
+	
 	val size = 60
 	val x = 10
 	val y = 10
@@ -115,8 +123,8 @@ fun generate_board c size =
 		    set renderstate (Some st);
 
 		    (* FIXME *)
-		    (*
-		    doSpeak id (SMovePiece (move.Src, move.Dest, move.Prom)); *)
+		    (**)
+		    doSpeak 7 (SMovePiece (move.Src, move.Dest, move.Prom)); 
 		    return ()
 		end
 		
@@ -431,17 +439,24 @@ fun generate_board c size =
 					       Prom = None
 					      });
 			      (* FIXME *)
-			      (* x <- rpc (getTree id);
-			       set pgnstate x *)
+			      x <- rpc (getTree 7);
+			      set pgnstate x;
 			      return () 
 			    | None => return ())
+			
+		and listener () =
+		    s <- recv ch;
+		    handle_boardmsg s;
+		    listener ()
+		    
 (**)
 
 	    in
 		set renderstate (Some (fen_to_board testFen));
 		 requestAnimationFrame2 drawBoard3; (* *)
 	(*	drawBoard4 ();
-		drawTest ();*)
+	 drawTest ();*)
+		spawn (listener ());
 		return <xml>		  
 		</xml>
 	    end	    
@@ -449,7 +464,7 @@ fun generate_board c size =
 
     in	
 	return <xml>
-	  <canvas id={c} onmousemove={mousemove} onmouseup={mouseup} onmousedown={mousedown}>      
+	  <canvas id={c} height={canvasH} width={canvasW} onmousemove={mousemove} onmouseup={mouseup} onmousedown={mousedown}>      
 	  </canvas>
 	  <active code={init ()}>
 	  </active>

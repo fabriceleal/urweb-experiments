@@ -1,5 +1,7 @@
 type piecerec = Chess.piecerec
 datatype piece = datatype Chess.piece
+datatype kind = datatype Chess.kind
+datatype pgnRoot = datatype Chess.pgnRoot
 type square = Chess.square
 type gamestate = Chess.gamestate
 
@@ -18,7 +20,15 @@ type promstate = { Src: square, Dest: square }
 type boardstate = { Highlight: list square, Pieces: list piecerec, DragPiece: option draggingPiece,
 		    Full : gamestate, Prom: option promstate  }
 
-val generate_board : id -> int -> transaction xbody
+		  
+datatype serverboardmsg =
+	 SMovePiece of square * square * option kind
+       | SHighlight of square
+       | SBack 
+       | SForward
+       | SPosition of int
+		      
+val generate_board : string -> id -> int -> (int -> transaction pgnRoot) -> (int -> serverboardmsg -> transaction unit) -> channel boardmsg -> transaction xbody
 
 val state_to_board : gamestate -> boardstate
 

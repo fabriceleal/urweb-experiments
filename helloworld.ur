@@ -10,12 +10,6 @@ style wrapping_span
       
 
 
-datatype serverboardmsg =
-	 SMovePiece of square * square * option kind
-       | SHighlight of square
-       | SBack 
-       | SForward
-       | SPosition of int
 
 	 
 structure Room = Sharedboard.Make(struct
@@ -776,10 +770,16 @@ and allPosts () =  (*
 		     </td>
 		 </tr></xml>);*)
 
-    rows <- query (SELECT * FROM post)
+    rows <- query (*SELECT * FROM post*)
+		(SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
+		       FROM post
+			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
+			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id)
+		
 		  (fn data acc =>		      
 		      cid <- fresh;
-		      board <- generate_board cid 30;
+		      ch <- Room.subscribe data.Post.Room;
+		      board <- generate_board data.Position.Fen cid 30 getTree doSpeak ch;
 		      return <xml>{acc}<tr>
 			<td>{[data.Post.Nam]}</td>
 			<td>{board}</td>
