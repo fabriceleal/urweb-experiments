@@ -8,11 +8,7 @@ open Canvasboard
 style move_clickable
 style wrapping_span
       
-type position = { Id: int, State: gamestate, Highlight: list square } 
 
-datatype boardmsg =
-	 Highlight of square
-       | Position of position
 
 datatype serverboardmsg =
 	 SMovePiece of square * square * option kind
@@ -60,15 +56,6 @@ fun currUser () =
       | Some r =>
 	row <- oneRow (SELECT user.Id, user.Nam FROM user WHERE user.Id = {[r.Id]} AND user.Pass = {[r.Pass]});
 	return (Some row.User)
-	       
-type rawPoint = { RawX: int, RawY : int}
-
-type draggingPiece = { Src: rawPoint, Current: rawPoint, Piece: piece }
-
-type promstate = { Src: square, Dest: square }
-	      
-type boardstate = { Highlight: list square, Pieces: list piecerec, DragPiece: option draggingPiece,
-		    Full : gamestate, Prom: option promstate  }
 
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
  
@@ -114,16 +101,6 @@ fun tree4 (id: int) =
     current <- oneRow (SELECT post.RootPositionId, position.Fen FROM post JOIN position ON post.RootPositionId = position.Id WHERE post.Id = {[id]});
     tree3 (Some current.Post.RootPositionId) current.Position.Fen   
 		     
-
-fun state_to_board state =
-    { Highlight = [], Full = state, Pieces=state.Pieces, DragPiece = None, Prom = None}
-	
-fun fen_to_board fen =
-    let
-	val state = fen_to_state fen
-    in
-	state_to_board state
-    end
 
 fun getRoom id =
     r <- oneRow (SELECT post.Room FROM post WHERE post.Id = {[id]});
@@ -802,7 +779,7 @@ and allPosts () =  (*
     rows <- query (SELECT * FROM post)
 		  (fn data acc =>		      
 		      cid <- fresh;
-		      board <- generate_board cid;
+		      board <- generate_board cid 30;
 		      return <xml>{acc}<tr>
 			<td>{[data.Post.Nam]}</td>
 			<td>{board}</td>
