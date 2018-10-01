@@ -779,7 +779,7 @@ and allPosts () =  (*
 		  (fn data acc =>		      
 		      cid <- fresh;
 		      ch <- Room.subscribe data.Post.Room;
-		      board <- generate_board data.Position.Fen cid 30 getTree doSpeak ch;
+		      board <- generate_board data.Position.Fen cid 30 (fn _ => getTree data.Post.Id) (fn s => doSpeak data.Post.Id s) ch;
 		      return <xml>{acc}<tr>
 			<td>{[data.Post.Nam]}</td>
 			<td>{board}</td>

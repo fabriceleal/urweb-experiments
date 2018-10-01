@@ -124,7 +124,7 @@ fun generate_board testFen c size getTree doSpeak ch =
 
 		    (* FIXME *)
 		    (**)
-		    doSpeak 7 (SMovePiece (move.Src, move.Dest, move.Prom)); 
+		    doSpeak (SMovePiece (move.Src, move.Dest, move.Prom)); 
 		    return ()
 		end
 		
@@ -439,7 +439,7 @@ fun generate_board testFen c size getTree doSpeak ch =
 					       Prom = None
 					      });
 			      (* FIXME *)
-			      x <- rpc (getTree 7);
+			      x <- rpc (getTree ());
 			      set pgnstate x;
 			      return () 
 			    | None => return ())
@@ -453,9 +453,8 @@ fun generate_board testFen c size getTree doSpeak ch =
 
 	    in
 		set renderstate (Some (fen_to_board testFen));
-		 requestAnimationFrame2 drawBoard3; (* *)
-	(*	drawBoard4 ();
-	 drawTest ();*)
+		requestAnimationFrame2 drawBoard3;
+		
 		spawn (listener ());
 		return <xml>		  
 		</xml>
