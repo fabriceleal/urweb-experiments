@@ -13,7 +13,7 @@ file /WhitePawn.png fonts/merida/80/WhitePawn.png
 library ../urweb-canvas/src/canvas
 library ../urweb-filetext/filetext_FFI
 safeGet Helloworld/allPosts
-database helloworld
+database dbname=helloworld
 sql helloworld.sql
 allow mime text/plain
 allow mime application/octet-stream
