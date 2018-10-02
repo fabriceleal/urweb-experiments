@@ -28,7 +28,7 @@ datatype serverboardmsg =
        | SForward
        | SPosition of int
 		      
-val generate_board : string -> id -> int -> (unit -> transaction pgnRoot) -> (serverboardmsg -> transaction unit) -> channel boardmsg -> transaction xbody
+val generate_board : string -> id -> int -> (unit -> transaction pgnRoot) -> (serverboardmsg -> transaction unit) -> channel boardmsg -> transaction (xbody * xbody)
 
 val state_to_board : gamestate -> boardstate
 

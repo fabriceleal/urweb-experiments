@@ -5,9 +5,6 @@ open Bootstrap4
 open Pgnparse
 open Canvasboard
      
-style move_clickable
-style wrapping_span
-      
 
 structure Room = Sharedboard.Make(struct
 				      type t = boardmsg
@@ -185,7 +182,7 @@ fun postPage2 id () =
 		       WHERE post.Id = {[id]});
     cid <- fresh;
     ch <- Room.subscribe current.Post.Room;
-    boardy <- generate_board current.Position.Fen cid 30 (fn _ => getTree current.Post.Id) (fn s => doSpeak current.Post.Id s) ch; (**)
+    (boardy, pgnviewer) <- generate_board current.Position.Fen cid 30 (fn _ => getTree current.Post.Id) (fn s => doSpeak current.Post.Id s) ch; (**)
     return <xml>
       <head>
 	<title>Post # {[id]}</title>
@@ -206,11 +203,11 @@ fun postPage2 id () =
 	  {boardy}
 	</div>
 	<div class={col_sm_4}>
-	  
+	  {pgnviewer}
 	</div>
       </body>
     </xml>
-    
+    (*
 and  postPage id () =
     
     current <- oneRow (SELECT post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
@@ -657,7 +654,7 @@ and  postPage id () =
 	</div>
 			      </body>
 			</xml>
-    end
+    end *)
 
 
 and downloadPost id =
@@ -809,14 +806,15 @@ and allPosts () =  (*
 		  (fn data acc =>		      
 		      cid <- fresh;
 		      ch <- Room.subscribe data.Post.Room;
-		      board <- generate_board data.Position.Fen cid 30 (fn _ => getTree data.Post.Id) (fn s => doSpeak data.Post.Id s) ch;
+		      (board, _) <- generate_board data.Position.Fen cid 30 (fn _ => getTree data.Post.Id) (fn s => doSpeak data.Post.Id s) ch;
 		      return <xml>{acc}<tr>
 			<td>{[data.Post.Nam]}</td>
 			<td>{board}</td>
-		     <td>
+			<td>
+			  (*
 		       <form>
 			 <submit action={postPage data.Post.Id} value="Enter"/>
-		       </form>
+		       </form>*)
 		       <form>
 			 <submit action={postPage2 data.Post.Id} value="Enter 2"/>
 		       </form>

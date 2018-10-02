@@ -21,8 +21,8 @@ rewrite all ContentDisposition/*
 allow responseHeader Content-Disposition
 allow url /Helloworld/allPosts
 file /exp.css rsrc/css/exp.css
-rewrite style Helloworld/move_clickable move-clickable
-rewrite style Helloworld/wrapping_span wrapping-span
+rewrite style Canvasboard/move_clickable move-clickable
+rewrite style Canvasboard/wrapping_span wrapping-span
 file /bootstrap.min.css rsrc/css/bootstrap.min.css
 rewrite style Bootstrap4/container container
 rewrite style Bootstrap4/row row

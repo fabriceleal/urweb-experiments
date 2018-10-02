@@ -1,7 +1,9 @@
 open Chess
 open Canvas_FFI
-
      
+style move_clickable
+style wrapping_span
+           
 type position = { Id: int, State: gamestate, Highlight: list square }
 		
 datatype boardmsg =
@@ -37,13 +39,15 @@ fun fen_to_board fen =
     in
 	state_to_board state
     end
+    
 (*
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
 *)
 		  
 fun generate_board testFen c size getTree doSpeak ch =
     rctx <- source None;
-    pgnstate <- source (Root (0, "", []));
+    tree <- getTree ();
+    pgnstate <- source tree;
     renderstate <- source None;
     mousestate <- source {RawX=0,RawY=0};
     
@@ -63,7 +67,39 @@ fun generate_board testFen c size getTree doSpeak ch =
 	val canvasH = size * 8
 
 
-	fun mousedown e =
+	fun renderPgnN pgnN siblings forceAlg =
+	    case pgnN of
+		Node (idP, fen, move, moveAlg, children) =>
+		let
+		    val rest = case children of
+				   [] => <xml></xml>
+				 | a :: siblings' =>  renderPgnN a siblings' (any siblings)
+
+		    val siblingsRender = case siblings of
+					     [] => <xml></xml>
+					   | _ :: _ =>
+					     <xml>
+					       { List.foldl (fn rc acc => <xml>{acc} ( {renderPgnN rc [] True} )</xml>) <xml></xml> siblings}
+					     </xml>
+		in
+		    <xml>
+		      <span class="move_clickable wrapping_span" onclick={fn _ => doSpeak (SPosition idP)}>
+			{[(moveToAlgebraic (fen_to_state fen) (str_to_move move) moveAlg forceAlg)]}
+		      </span>
+		      {siblingsRender}
+		      {rest}
+		    </xml>
+		end
+		
+	and  renderPgn pgn =
+	     case pgn of
+		 Root (_, _, []) =>
+		 return <xml> * </xml>
+	       | Root (_, _, (a :: siblings)) => 
+		 return <xml> {renderPgnN a siblings False} </xml>		
+		 
+	
+	and mousedown e =
 	    p' <- get renderstate;
 	    case p' of
 		Some p'' => 
@@ -121,9 +157,6 @@ fun generate_board testFen c size getTree doSpeak ch =
 			      Prom = None}
 		in
 		    set renderstate (Some st);
-
-		    (* FIXME *)
-		    (**)
 		    doSpeak (SMovePiece (move.Src, move.Dest, move.Prom)); 
 		    return ()
 		end
@@ -438,7 +471,6 @@ fun generate_board testFen c size getTree doSpeak ch =
 					       DragPiece = None,
 					       Prom = None
 					      });
-			      (* FIXME *)
 			      x <- rpc (getTree ());
 			      set pgnstate x;
 			      return () 
@@ -462,11 +494,13 @@ fun generate_board testFen c size getTree doSpeak ch =
 	    
 
     in	
-	return <xml>
+	return (<xml>
 	  <canvas id={c} height={canvasH} width={canvasW} onmousemove={mousemove} onmouseup={mouseup} onmousedown={mousedown}>      
 	  </canvas>
 	  <active code={init ()}>
 	  </active>
-	</xml>
+	</xml>, <xml>
+	  <dyn signal={m <- signal pgnstate; renderPgn m } />
+	</xml>)
     end
     
