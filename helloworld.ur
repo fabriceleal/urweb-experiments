@@ -9,14 +9,10 @@ style move_clickable
 style wrapping_span
       
 
-
-
-	 
 structure Room = Sharedboard.Make(struct
 				      type t = boardmsg
 				  end)
 
-		 
 sequence postSeq
 sequence positionSeq
 sequence commentSeq
@@ -180,8 +176,42 @@ fun getTree id =
 fun doSpeak id line =	 
     rpc (speak id line)
     
+
+fun postPage2 id () =
+    current <- oneRow (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
+		       FROM post
+			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
+			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
+		       WHERE post.Id = {[id]});
+    cid <- fresh;
+    ch <- Room.subscribe current.Post.Room;
+    boardy <- generate_board current.Position.Fen cid 30 (fn _ => getTree current.Post.Id) (fn s => doSpeak current.Post.Id s) ch; (**)
+    return <xml>
+      <head>
+	<title>Post # {[id]}</title>
+	<link rel="stylesheet" type="text/css" href="/exp.css"/>
+	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
+      </head>
+      <body>
+	<div class={col_sm_2}>
+
+	  <a link={index()}>another page</a>
+	  <a link={allPosts()}>all posts</a>
+	  
+	  <button value="Back" onclick={fn _ => doSpeak id SBack } />
+	    <button value="Fw" onclick={fn _ => doSpeak id SForward } />
+	      <a link={downloadPost id}>download</a>
+	</div>
+	<div class={col_sm_6}>
+	  {boardy}
+	</div>
+	<div class={col_sm_4}>
+	  
+	</div>
+      </body>
+    </xml>
     
-fun postPage id () =
+and  postPage id () =
     
     current <- oneRow (SELECT post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
 		       FROM post
@@ -786,6 +816,9 @@ and allPosts () =  (*
 		     <td>
 		       <form>
 			 <submit action={postPage data.Post.Id} value="Enter"/>
+		       </form>
+		       <form>
+			 <submit action={postPage2 data.Post.Id} value="Enter 2"/>
 		       </form>
 		     </td>
 		      </tr>
