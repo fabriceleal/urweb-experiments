@@ -13,3 +13,5 @@ val testResponsive : unit -> transaction page
 			     
 val testUpload : unit -> transaction page
 			 
+val testMk : unit -> transaction page
+		     

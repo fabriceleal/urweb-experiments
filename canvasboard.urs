@@ -10,6 +10,7 @@ type position = { Id: int, State: gamestate, Highlight: list square }
 datatype boardmsg =
 	 Highlight of square
        | Position of position
+       | Comment of string
 		 
 type rawPoint = { RawX: int, RawY : int}
 
@@ -27,8 +28,15 @@ datatype serverboardmsg =
        | SBack 
        | SForward
        | SPosition of int
+       | SComment of string
+       | SNewPost of option int * string
 		      
-val generate_board : string -> id -> int -> (unit -> transaction pgnRoot) -> (serverboardmsg -> transaction unit) -> channel boardmsg -> transaction (xbody * xbody)
+val generate_board : string -> id -> int ->
+		     (unit -> transaction pgnRoot) ->
+		     (unit -> transaction (list string)) ->
+		     (serverboardmsg -> transaction unit) ->
+		     channel boardmsg ->
+		     transaction (xbody * xbody * xbody)
 
 val state_to_board : gamestate -> boardstate
 

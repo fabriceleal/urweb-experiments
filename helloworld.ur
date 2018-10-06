@@ -4,7 +4,7 @@ open Chess
 open Bootstrap4
 open Pgnparse
 open Canvasboard
-     
+open Nmarkdown     
 
 structure Room = Sharedboard.Make(struct
 				      type t = boardmsg
@@ -14,7 +14,7 @@ sequence postSeq
 sequence positionSeq
 sequence commentSeq
 
-table post : { Id : int, Nam : string, RootPositionId: int, CurrentPositionId : int, Room : Room.topic }
+table post : { Id : int, Nam : string, RootPositionId: int, CurrentPositionId : int, ParentPostId : option int, Room : Room.topic }
 		 PRIMARY KEY Id
 	     
 table position : {Id: int, PostId: int, Fen : string, Move: option string, MoveAlg: option string, PreviousPositionId: option int }
@@ -93,6 +93,65 @@ fun getRoom id =
     r <- oneRow (SELECT post.Room FROM post WHERE post.Id = {[id]});
     return r.Post.Room
 
+fun addPostF idPostParent txt =
+    let
+
+	fun importChildren id idP fen children =
+	    let
+		val state = fen_to_state fen
+		fun importChildrenAux children =
+		    case children of
+			[] => return ()
+		      | h :: t =>
+			
+			case h of
+			    Node (_, _, move, _, children2) =>
+			    let
+				val rmove = str_to_move move
+			    in
+				case (doMove state rmove) of
+				    None => return ()
+				  | Some newState => 
+				    nidP <- nextval positionSeq;
+				    let					
+					val nfen = state_to_fen newState
+					val nmove = moveStr rmove
+					val alg = moveToAlgebraicClean state rmove newState
+				    in
+					dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId )
+					     VALUES ({[nidP]}, {[id]}, {[nfen]}, {[Some nmove]}, {[Some alg]}, {[Some idP]} ));
+					importChildren id nidP nfen children2;
+					importChildrenAux t
+				    end
+			    end
+		    
+	    in
+		importChildrenAux children
+	    end
+	    
+	fun importTree id idP root =
+	    case root of
+		Root (_, fen, children) => 
+		dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[fen]},
+												    {[None]}, {[None]}, {[None]} ));
+		importChildren id idP fen children
+		
+	fun insertPost tree =
+	    id <- nextval postSeq;    
+	    idP <- nextval positionSeq;
+	    sharedboard <- Room.create;
+    
+	    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId)
+		 VALUES ({[id]}, {[txt]}, {[idP]}, {[idP]}, {[sharedboard]}, {[idPostParent]}));
+	    
+	    importTree id idP tree
+
+	val tree = Root (0, startingFen, [])
+    in
+	insertPost tree
+    end
+
+
 fun speak id line =
     case line of
 	SMovePiece (src, dest, kind) =>
@@ -118,10 +177,9 @@ fun speak id line =
 		       val newMoveAlg = moveToAlgebraicClean state move manipulated
 		   in			 
 		       dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
-		       dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId) VALUES ({[idP]}, {[id]}, {[newFen]},
-													  {[Some newMove]},
-													  {[Some newMoveAlg]},
-													  {[Some row.Post.CurrentPositionId]}) );
+		       dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId)
+			    VALUES ({[idP]}, {[id]}, {[newFen]}, {[Some newMove]}, {[Some newMoveAlg]},
+				{[Some row.Post.CurrentPositionId]}) );
 		       
 		       room <- getRoom id;
 		       
@@ -166,23 +224,61 @@ fun speak id line =
       | SHighlight sq =>
 	room <- getRoom id;
 	Room.send room (Highlight sq)
+      | SComment txt =>
+	idC <- nextval commentSeq;
+	dml (INSERT INTO comment (Id, PositionId, Content) VALUES({[idC]}, {[id]}, {[txt]} ));
+	room <- getRoom id;
+	Room.send room (Comment txt)
+      | SNewPost (optP, txt) =>
+	addPostF optP txt;
+	return ()
 
 fun getTree id =
     tree4 id
+
+fun getComments (id : int) : transaction (list string) =
+    List.mapQuery (SELECT comment.Content FROM comment WHERE comment.PositionId = {[id]} ORDER BY comment.Id)
+		  (fn i => i.Comment.Content)
     
 fun doSpeak id line =	 
     rpc (speak id line)
-    
 
-fun postPage2 id () =
+fun renderPostTree id =
+    let
+        fun recurse (root : option int) =
+            queryX' (SELECT * FROM post WHERE {eqNullable' (SQL post.ParentPostId) root})
+                    (fn r =>
+                        children <- recurse (Some r.Post.Id);
+                        return <xml>
+                          <li>			    
+			    <form>
+			      <submit action={postPage2 r.Post.Id} value={r.Post.Nam} />
+			    </form>
+			  </li>
+                          
+                          <ul>
+                            {children}
+                          </ul>
+                        </xml>)
+    in
+        recurse (Some id)
+    end
+
+and postPage2 id () =
     current <- oneRow (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
 		       FROM post
 			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
 			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
 		       WHERE post.Id = {[id]});
+    postTree <- renderPostTree id;
     cid <- fresh;
     ch <- Room.subscribe current.Post.Room;
-    (boardy, pgnviewer) <- generate_board current.Position.Fen cid 30 (fn _ => getTree current.Post.Id) (fn s => doSpeak current.Post.Id s) ch; (**)
+    (boardy, pgnviewer, commentviewer) <- generate_board current.Position.Fen cid 30
+							 (fn _ => getTree current.Post.Id)
+							 (fn _ => getComments current.Post.Id )
+							 (fn s => doSpeak current.Post.Id s) ch;
+    commenttxt <- source "";
+    newpostname <- source "";
     return <xml>
       <head>
 	<title>Post # {[id]}</title>
@@ -190,21 +286,49 @@ fun postPage2 id () =
 	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
       </head>
       <body>
-	<div class={col_sm_2}>
-
-	  <a link={index()}>another page</a>
-	  <a link={allPosts()}>all posts</a>
+	<div class={container}>
+	  post # {[id]}
 	  
-	  <button value="Back" onclick={fn _ => doSpeak id SBack } />
-	    <button value="Fw" onclick={fn _ => doSpeak id SForward } />
-	      <a link={downloadPost id}>download</a>
+	  <div class={row}>
+	    
+	    <div class={col_sm_2}>
+
+	      <a link={index()}>another page</a>
+	      <a link={allPosts()}>all posts</a>
+	      
+	      <button value="Back" onclick={fn _ => doSpeak id SBack } />
+		<button value="Fw" onclick={fn _ => doSpeak id SForward } />
+		  <a link={downloadPost id}>download</a>
+
+		  { postTree }
+
+		  <div>
+		    <ctextbox source={newpostname} />
+		    <button value="New Empty Post" onclick={fn _ =>
+							       nam <- get newpostname;
+							       doSpeak id (SNewPost (Some id, nam));
+							       set newpostname "" } />
+		  </div>
+	    </div>
+	    <div class={col_sm_6}>
+	      {boardy}
+	    </div>
+	    <div class={col_sm_4}>
+	      {pgnviewer}
+
+	      {commentviewer}
+		
+	      <div>
+		<ctextarea source={commenttxt} />
+		<button value="Comment" onclick={fn _ =>
+						    txt <- get commenttxt;
+						    doSpeak id (SComment txt);
+						    set commenttxt "" } />
+	      </div>
+	    </div>
+	  </div>
 	</div>
-	<div class={col_sm_6}>
-	  {boardy}
-	</div>
-	<div class={col_sm_4}>
-	  {pgnviewer}
-	</div>
+	
       </body>
     </xml>
     (*
@@ -702,6 +826,21 @@ and logon r =
 	setCookie login {Value = {Id=r'.User.Id, Pass =r.Pass}, Secure=False, Expires = None};
 	main ()
 
+and testMk () =
+    return <xml>
+      <body>
+	{renderMk (compile "# title
+blah blah blah [link](/Helloworld/allPosts)
+
+---
+
+blah [another link](/Helloworld/postPage2/3)
+
+
+")}
+      </body>
+    </xml>
+
 and main () =
     u <- currUser ();
     return (case u of
@@ -801,12 +940,16 @@ and allPosts () =  (*
 		(SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
 		       FROM post
 			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
-			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id)
+			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
+		       WHERE {eqNullable' (SQL post.ParentPostId) None})
 		
 		  (fn data acc =>		      
 		      cid <- fresh;
 		      ch <- Room.subscribe data.Post.Room;
-		      (board, _) <- generate_board data.Position.Fen cid 30 (fn _ => getTree data.Post.Id) (fn s => doSpeak data.Post.Id s) ch;
+		      (board, _, _) <- generate_board data.Position.Fen cid 30
+						      (fn _ => getTree data.Post.Id)
+						      (fn _ => return [])
+						      (fn s => doSpeak data.Post.Id s) ch;
 		      return <xml>{acc}<tr>
 			<td>{[data.Post.Nam]}</td>
 			<td>{board}</td>
@@ -846,6 +989,7 @@ and createPost () = return <xml>
     </form>
   </body>
 </xml>
+
 
 and addPost newPost =
     let
@@ -895,14 +1039,10 @@ and addPost newPost =
 	    idP <- nextval positionSeq;
 	    sharedboard <- Room.create;
     
-	    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room) VALUES ({[id]}, {[newPost.Nam]}, {[idP]},
-											 {[idP]}, {[sharedboard]}));
-
-	    (* importTree id idP (Root (0, startingFen, (Node(0, "", "e2e4", "", Node(0, "", "e7e5", "", []) :: []) :: []))); *)
-
-	    importTree id idP tree; 
+	    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId)
+		 VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[None]}));
 	    
-	    redirect (bless "/Helloworld/allPosts")
+	    importTree id idP tree
     
     in
     
@@ -912,27 +1052,8 @@ and addPost newPost =
 	    let
 		val tree = pgnToGame newPost.Pgn
 	    in
-		(*
-		let
-		    val m = pawnAlgebraicToMove (fen_to_state startingFen) "d4"
-		in
-		    case m of
-			None => debug "err"
-		      | Some m => debug  (moveStr m)
-		end;
-		debug (show (fileToI (strsub "d4" 0)));
-		debug (show (rankToI (strsub "d4" 1)));
-		
-		debug "==";
-		debug (newPost.Pgn);
-		debug "==";
-		 debug (show tree);
-
-		debug (show (List.length (test newPost.Pgn)));
-		debug (List.foldr (fn e acc => case e of
-						   (str, _) => str ^ acc) "" (test newPost.Pgn));
-		*)
-		insertPost tree
+		insertPost tree;	    
+		redirect (url (allPosts ()))
 	    end
 	end
     

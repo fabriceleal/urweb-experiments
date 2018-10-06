@@ -9,6 +9,7 @@ type position = { Id: int, State: gamestate, Highlight: list square }
 datatype boardmsg =
 	 Highlight of square
        | Position of position
+       | Comment of string
 		     
 type renderCtx = { BK : img, BQ : img, BR : img, BB : img, BN : img, BP : img,
 		   WK : img, WQ : img, WR : img, WB : img, WN : img, WP : img,
@@ -29,7 +30,8 @@ datatype serverboardmsg =
        | SBack 
        | SForward
        | SPosition of int
-		      
+       | SComment of string
+       | SNewPost of option int * string		      
 fun state_to_board state =
     { Highlight = [], Full = state, Pieces=state.Pieces, DragPiece = None, Prom = None}
 	
@@ -44,12 +46,14 @@ fun fen_to_board fen =
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
 *)
 		  
-fun generate_board testFen c size getTree doSpeak ch =
+fun generate_board testFen c size getTree getComments doSpeak ch =
     rctx <- source None;
     tree <- getTree ();
     pgnstate <- source tree;
     renderstate <- source None;
     mousestate <- source {RawX=0,RawY=0};
+    cmm <- getComments ();
+    commentsstate <- source cmm;
     
     let
 	(*
@@ -98,7 +102,9 @@ fun generate_board testFen c size getTree doSpeak ch =
 	       | Root (_, _, (a :: siblings)) => 
 		 return <xml> {renderPgnN a siblings False} </xml>		
 		 
-	
+	and renderComments comments =
+	    return (List.foldl (fn i acc => <xml>{[i]} {acc}</xml>) <xml></xml> comments)
+		 
 	and mousedown e =
 	    p' <- get renderstate;
 	    case p' of
@@ -447,8 +453,12 @@ fun generate_board testFen c size getTree doSpeak ch =
 		    setTimeout drawBoard4 30
 
 		and handle_boardmsg s =
-		    case s of			   
-			Highlight(sq) =>
+		    case s of
+			Comment s =>
+			s' <- get commentsstate;
+			set commentsstate (s :: s')
+			
+		      | Highlight(sq) =>
 			(s' <- get renderstate;
 			 case s' of
 			    | Some s'' =>
@@ -494,13 +504,18 @@ fun generate_board testFen c size getTree doSpeak ch =
 	    
 
     in	
-	return (<xml>
+	return (
+	<xml>
 	  <canvas id={c} height={canvasH} width={canvasW} onmousemove={mousemove} onmouseup={mouseup} onmousedown={mousedown}>      
 	  </canvas>
 	  <active code={init ()}>
 	  </active>
-	</xml>, <xml>
-	  <dyn signal={m <- signal pgnstate; renderPgn m } />
-	</xml>)
+	</xml>,
+	    <xml>
+	      <dyn signal={m <- signal pgnstate; renderPgn m } />
+	    </xml>,
+	    <xml>
+	      <dyn signal={m <- signal commentsstate; renderComments m } />
+	    </xml>)
     end
     
