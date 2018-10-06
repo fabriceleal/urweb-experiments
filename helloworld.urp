@@ -1,15 +1,15 @@
-file /BlackKing.png fonts/merida/80/BlackKing.png
-file /BlackQueen.png fonts/merida/80/BlackQueen.png
-file /BlackRook.png fonts/merida/80/BlackRook.png
-file /BlackBishop.png fonts/merida/80/BlackBishop.png
-file /BlackKnight.png fonts/merida/80/BlackKnight.png
-file /BlackPawn.png fonts/merida/80/BlackPawn.png
-file /WhiteKing.png fonts/merida/80/WhiteKing.png
-file /WhiteQueen.png fonts/merida/80/WhiteQueen.png
-file /WhiteRook.png fonts/merida/80/WhiteRook.png
-file /WhiteBishop.png fonts/merida/80/WhiteBishop.png
-file /WhiteKnight.png fonts/merida/80/WhiteKnight.png
-file /WhitePawn.png fonts/merida/80/WhitePawn.png
+file /BlackKing.svg fonts/merida/svg/BlackKing.svg
+file /BlackQueen.svg fonts/merida/svg/BlackQueen.svg
+file /BlackRook.svg fonts/merida/svg/BlackRook.svg
+file /BlackBishop.svg fonts/merida/svg/BlackBishop.svg
+file /BlackKnight.svg fonts/merida/svg/BlackKnight.svg
+file /BlackPawn.svg fonts/merida/svg/BlackPawn.svg
+file /WhiteKing.svg fonts/merida/svg/WhiteKing.svg
+file /WhiteQueen.svg fonts/merida/svg/WhiteQueen.svg
+file /WhiteRook.svg fonts/merida/svg/WhiteRook.svg
+file /WhiteBishop.svg fonts/merida/svg/WhiteBishop.svg
+file /WhiteKnight.svg fonts/merida/svg/WhiteKnight.svg
+file /WhitePawn.svg fonts/merida/svg/WhitePawn.svg
 library ../urweb-canvas/src/canvas
 library ../urweb-filetext/filetext_FFI
 library ../urweb-nmarkdown/nmarkdown

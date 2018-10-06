@@ -63,7 +63,7 @@ fun generate_board testFen c size getTree getComments doSpeak ch =
 	val promBg = make_rgba 244 244 244 1.0
 	val promBgSel = make_rgba 211 211 211 1.0 *)
 	
-	val size = 60
+	(*val size = 60*)
 	val x = 10
 	val y = 10
 	val offProm = 2
@@ -289,20 +289,20 @@ fun generate_board testFen c size getTree getComments doSpeak ch =
 		     
 	and init () =
 
-	    bk <- make_img(bless("/BlackKing.png"));
-	    bq <- make_img(bless("/BlackQueen.png"));
-	    br <- make_img(bless("/BlackRook.png"));
-	    bb <- make_img(bless("/BlackBishop.png"));
-	    bn <- make_img(bless("/BlackKnight.png"));
-	    bp <- make_img(bless("/BlackPawn.png"));
+	    bk <- make_img(bless("/BlackKing.svg"));
+	    bq <- make_img(bless("/BlackQueen.svg"));
+	    br <- make_img(bless("/BlackRook.svg"));
+	    bb <- make_img(bless("/BlackBishop.svg"));
+	    bn <- make_img(bless("/BlackKnight.svg"));
+	    bp <- make_img(bless("/BlackPawn.svg"));
 	    
 	    
-	    wk <- make_img(bless("/WhiteKing.png"));
-	    wq <- make_img(bless("/WhiteQueen.png"));
-	    wr <- make_img(bless("/WhiteRook.png"));
-	    wb <- make_img(bless("/WhiteBishop.png"));
-	    wn <- make_img(bless("/WhiteKnight.png"));
-	    wp <- make_img(bless("/WhitePawn.png"));
+	    wk <- make_img(bless("/WhiteKing.svg"));
+	    wq <- make_img(bless("/WhiteQueen.svg"));
+	    wr <- make_img(bless("/WhiteRook.svg"));
+	    wb <- make_img(bless("/WhiteBishop.svg"));
+	    wn <- make_img(bless("/WhiteKnight.svg"));
+	    wp <- make_img(bless("/WhitePawn.svg"));
 	    	    
 	    ctx <- getContext2d c;
 

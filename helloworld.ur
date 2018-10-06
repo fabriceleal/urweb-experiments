@@ -946,7 +946,7 @@ and allPosts () =  (*
 		  (fn data acc =>		      
 		      cid <- fresh;
 		      ch <- Room.subscribe data.Post.Room;
-		      (board, _, _) <- generate_board data.Position.Fen cid 30
+		      (board, _, _) <- generate_board data.Position.Fen cid 10
 						      (fn _ => getTree data.Post.Id)
 						      (fn _ => return [])
 						      (fn s => doSpeak data.Post.Id s) ch;
