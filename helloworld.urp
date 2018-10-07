@@ -13,6 +13,8 @@ file /WhitePawn.svg fonts/merida/svg/WhitePawn.svg
 library ../urweb-canvas/src/canvas
 library ../urweb-filetext/filetext_FFI
 library ../urweb-nmarkdown/nmarkdown
+library ../urweb-ncrypto-hash-openssl/lib
+library $/crypto-random-openssl/lib
 safeGet Helloworld/allPosts
 database dbname=helloworld
 sql helloworld.sql

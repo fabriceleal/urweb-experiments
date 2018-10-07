@@ -46,7 +46,7 @@ fun fen_to_board fen =
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
 *)
 		  
-fun generate_board testFen c size getTree getComments doSpeak ch =
+fun generate_board testFen c size editable getTree getComments doSpeak ch =
     rctx <- source None;
     tree <- getTree ();
     pgnstate <- source tree;
@@ -63,11 +63,11 @@ fun generate_board testFen c size getTree getComments doSpeak ch =
 	val promBg = make_rgba 244 244 244 1.0
 	val promBgSel = make_rgba 211 211 211 1.0 *)
 	
-	(*val size = 60*)
+	(*val size = 60
 	val x = 10
-	val y = 10
+	val y = 10*)
 	val offProm = 2
-	val canvasW = size * 9 + offProm
+	val canvasW = if editable then size * 9 + offProm else size * 8
 	val canvasH = size * 8
 
 
@@ -336,19 +336,22 @@ fun generate_board testFen c size getTree getComments doSpeak ch =
 		    draw_piece_dl ctx piece (float (size * 8 + offProm)) (float (row * size))
 
 		and paint_prom ctx pr x' =
-		    case pr of
-			Some p =>
-			if p.Dest.Y = 0 then
-			    (paint_prom_sq ctx 0 WhiteQueen x';
-			     paint_prom_sq ctx 1 WhiteRook x';
-			     paint_prom_sq ctx 2 WhiteBishop x';
-			     paint_prom_sq ctx 3 WhiteKnight x')
-			else
-			    (paint_prom_sq ctx 4 BlackKnight x';
-			     paint_prom_sq ctx 5 BlackBishop x';
-			     paint_prom_sq ctx 6 BlackRook x';
-			     paint_prom_sq ctx 7 BlackQueen x')
-		      | None => return ()
+		    if editable then
+			case pr of
+			    Some p =>
+			    if p.Dest.Y = 0 then
+				(paint_prom_sq ctx 0 WhiteQueen x';
+				 paint_prom_sq ctx 1 WhiteRook x';
+				 paint_prom_sq ctx 2 WhiteBishop x';
+				 paint_prom_sq ctx 3 WhiteKnight x')
+			    else
+				(paint_prom_sq ctx 4 BlackKnight x';
+				 paint_prom_sq ctx 5 BlackBishop x';
+				 paint_prom_sq ctx 6 BlackRook x';
+				 paint_prom_sq ctx 7 BlackQueen x')
+			  | None => return ()
+		    else
+			return ()
 				
 		and piece_to_id piece =
 		    case piece of
@@ -505,17 +508,25 @@ fun generate_board testFen c size getTree getComments doSpeak ch =
 
     in	
 	return (
+	(if editable then
+	     <xml>
+	       <canvas id={c} height={canvasH} width={canvasW} onmousemove={mousemove} onmouseup={mouseup} onmousedown={mousedown}>      
+	       </canvas>
+	       <active code={init ()}>
+	       </active>
+	     </xml>
+	 else
+	     <xml>
+	       <canvas id={c} height={canvasH} width={canvasW}>      
+	       </canvas>
+	       <active code={init ()}>
+	       </active>
+	     </xml>),
 	<xml>
-	  <canvas id={c} height={canvasH} width={canvasW} onmousemove={mousemove} onmouseup={mouseup} onmousedown={mousedown}>      
-	  </canvas>
-	  <active code={init ()}>
-	  </active>
+	  <dyn signal={m <- signal pgnstate; renderPgn m } />
 	</xml>,
-	    <xml>
-	      <dyn signal={m <- signal pgnstate; renderPgn m } />
-	    </xml>,
-	    <xml>
-	      <dyn signal={m <- signal commentsstate; renderComments m } />
-	    </xml>)
+	<xml>
+	  <dyn signal={m <- signal commentsstate; renderComments m } />
+	</xml>)
     end
     

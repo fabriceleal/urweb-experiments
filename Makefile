@@ -17,4 +17,4 @@ run: helloworld.exe
 	./helloworld.exe
 
 clean:
-	rm helloworld.exe
+	rm -f helloworld.exe

@@ -4,7 +4,7 @@ open Chess
 open Bootstrap4
 open Pgnparse
 open Canvasboard
-open Nmarkdown     
+open Nmarkdown
 
 structure Room = Sharedboard.Make(struct
 				      type t = boardmsg
@@ -31,17 +31,36 @@ open Pgn.Make(struct
 		
 type userId = int
 	      
-table user: {Id: userId, Nam: string, Pass: string}
+table user: {Id: userId, Nam: string, Pass: Hash.digest, Salt: blob}
 		PRIMARY KEY Id
 
-cookie login : {Id: userId, Pass: string}
+table rootAdmin : { Id : userId }
+		      PRIMARY KEY Id,
+      CONSTRAINT Id FOREIGN KEY Id REFERENCES user(Id)
+
+task initialize = fn () =>
+    b <- nonempty rootAdmin;
+    if b then
+        return ()
+    else
+	salt <- Random.bytes 64;
+	let
+	    val passraw = "root"
+	    val pass = Hash.sha512 (textBlob passraw)
+	in	    
+	    dml (INSERT INTO user (Id, Nam, Pass, Salt) VALUES (0, 'root', {[pass]}, {[salt]}));
+            dml (INSERT INTO rootAdmin (Id) VALUES (0))
+	end
+
+
+cookie login : {Id: userId}
 
 fun currUser () =
     ro <- getCookie login;
     case ro of
 	None => return None
       | Some r =>
-	row <- oneRow (SELECT user.Id, user.Nam FROM user WHERE user.Id = {[r.Id]} AND user.Pass = {[r.Pass]});
+	row <- oneRow (SELECT user.Id, user.Nam FROM user WHERE user.Id = {[r.Id]} );
 	return (Some row.User)
 
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
@@ -273,7 +292,7 @@ and postPage2 id () =
     postTree <- renderPostTree id;
     cid <- fresh;
     ch <- Room.subscribe current.Post.Room;
-    (boardy, pgnviewer, commentviewer) <- generate_board current.Position.Fen cid 30
+    (boardy, pgnviewer, commentviewer) <- generate_board current.Position.Fen cid 60 True
 							 (fn _ => getTree current.Post.Id)
 							 (fn _ => getComments current.Post.Id )
 							 (fn s => doSpeak current.Post.Id s) ch;
@@ -816,15 +835,21 @@ and index () = return <xml>
   <body>index
     <a link={createPost ()}>create post</a>
     <a link={allPosts  ()}>all posts</a>
-    <a link={main () }>new page</a></body></xml>
+</body></xml>
+(*     <a link={main () }>new page</a> *)
 
 and logon r =
-    ro <- oneOrNoRows (SELECT user.Id FROM user WHERE user.Nam = {[r.Nam]} AND user.Pass = {[r.Pass]});
-    case ro of
-	None => error <xml>Wrong user or pass!</xml>
-      | Some r' =>
-	setCookie login {Value = {Id=r'.User.Id, Pass =r.Pass}, Secure=False, Expires = None};
-	main ()
+    let
+	val passraw = r.Pass
+	val passtest = Hash.sha512 (textBlob passraw)
+    in
+	ro <- oneOrNoRows (SELECT user.Id FROM user WHERE user.Nam = {[r.Nam]} AND user.Pass = {[passtest]});
+	case ro of
+	    None => error <xml>Wrong user or pass!</xml>
+	  | Some r' =>
+	    setCookie login {Value = {Id=r'.User.Id}, Secure=False, Expires = None};
+	    main ()
+    end
 
 and testMk () =
     return <xml>
@@ -841,6 +866,7 @@ blah [another link](/Helloworld/postPage2/3)
       </body>
     </xml>
 
+(**)
 and main () =
     u <- currUser ();
     return (case u of
@@ -863,7 +889,7 @@ and main () =
 		   <h1>Welcome to the turtle corner! {[u.Nam]}</h1>
 		   <a link={index ()}>index</a>
 		 </body>
-	       </xml>)
+	       </xml>) 
 
 and handleTestUpload r =
     return <xml>
@@ -946,7 +972,7 @@ and allPosts () =  (*
 		  (fn data acc =>		      
 		      cid <- fresh;
 		      ch <- Room.subscribe data.Post.Room;
-		      (board, _, _) <- generate_board data.Position.Fen cid 10
+		      (board, _, _) <- generate_board data.Position.Fen cid 20 False
 						      (fn _ => getTree data.Post.Id)
 						      (fn _ => return [])
 						      (fn s => doSpeak data.Post.Id s) ch;

@@ -31,7 +31,7 @@ datatype serverboardmsg =
        | SComment of string
        | SNewPost of option int * string
 		      
-val generate_board : string -> id -> int ->
+val generate_board : string -> id -> int -> bool ->
 		     (unit -> transaction pgnRoot) ->
 		     (unit -> transaction (list string)) ->
 		     (serverboardmsg -> transaction unit) ->
