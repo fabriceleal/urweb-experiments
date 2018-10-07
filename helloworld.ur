@@ -31,8 +31,12 @@ open Pgn.Make(struct
 		
 type userId = int
 	      
-table user: {Id: userId, Nam: string, Pass: Hash.digest, Salt: blob}
+table user: {Id: userId, Nam: string, Pass: Hash.digest, Salt: string }
 		PRIMARY KEY Id
+
+
+table invite : {Id: int, UserId: userId}(*, InvitedId: option userId}*) (*, Code: string, Email: string, Expires: time}*)
+		   PRIMARY KEY Id
 
 table rootAdmin : { Id : userId }
 		      PRIMARY KEY Id,
@@ -45,10 +49,12 @@ task initialize = fn () =>
     else
 	salt <- Random.bytes 64;
 	let
-	    val passraw = "root"
+	    val saltEncoded = Base64_FFI.encode(salt)
+	    val passraw = "root" ^ saltEncoded
 	    val pass = Hash.sha512 (textBlob passraw)
-	in	    
-	    dml (INSERT INTO user (Id, Nam, Pass, Salt) VALUES (0, 'root', {[pass]}, {[salt]}));
+	in
+	    debug ("saltEncoded:" ^ saltEncoded);
+	    dml (INSERT INTO user (Id, Nam, Pass, Salt) VALUES (0, 'root', {[pass]}, {[saltEncoded]}));
             dml (INSERT INTO rootAdmin (Id) VALUES (0))
 	end
 
@@ -836,20 +842,26 @@ and index () = return <xml>
     <a link={createPost ()}>create post</a>
     <a link={allPosts  ()}>all posts</a>
 </body></xml>
-(*     <a link={main () }>new page</a> *)
 
-and logon r =
-    let
-	val passraw = r.Pass
-	val passtest = Hash.sha512 (textBlob passraw)
-    in
-	ro <- oneOrNoRows (SELECT user.Id FROM user WHERE user.Nam = {[r.Nam]} AND user.Pass = {[passtest]});
-	case ro of
-	    None => error <xml>Wrong user or pass!</xml>
-	  | Some r' =>
-	    setCookie login {Value = {Id=r'.User.Id}, Secure=False, Expires = None};
-	    main ()
-    end
+and logon r =    
+    ro <- oneOrNoRows (SELECT user.Id, user.Pass, user.Salt FROM user WHERE user.Nam = {[r.Nam]});
+    case ro of
+	None => error <xml>Wrong user or pass!</xml>
+      | Some r' =>
+	let
+	    val hashed = Hash.sha512(textBlob(r.Pass ^ r'.User.Salt))
+	in
+	    if hashed = r'.User.Pass then
+		setCookie login {Value = {Id=r'.User.Id}, Secure=False, Expires = None};
+		redirect (url (main ()))
+	    else
+		error <xml>Wrong user or pass!</xml>
+	end
+	
+
+and logoff () =
+    clearCookie login;
+    redirect (url (main ()))
 
 and testMk () =
     return <xml>
@@ -866,7 +878,25 @@ blah [another link](/Helloworld/postPage2/3)
       </body>
     </xml>
 
-(**)
+and invites () =
+(*    rows <- query (SELECT * FROM invite WHERE invite.UserId = {[userid]})
+		  (fn data acc =>
+		      <xml>
+			{acc}
+			<tr>
+			  <td></td>
+			  <td></td>
+			</tr>
+		      </xml>);*)
+    return
+	<xml>
+	  <body>
+	    <table>
+
+	    </table>
+	  </body>
+	</xml>
+
 and main () =
     u <- currUser ();
     return (case u of
@@ -876,7 +906,7 @@ and main () =
 		   <form>
 		     <table>
 		       <tr><th>Name</th><td><textbox{#Nam}/></td></tr>
-		       <tr><th>Password:</th><td><textbox{#Pass}/></td></tr>
+		       <tr><th>Password:</th><td><password{#Pass}/></td></tr>
 		       <tr><td><submit action={logon}/></td></tr>
 		       <tr></tr>
 		     </table>
@@ -888,6 +918,8 @@ and main () =
 		 <body>
 		   <h1>Welcome to the turtle corner! {[u.Nam]}</h1>
 		   <a link={index ()}>index</a>
+		   <a link={invites ()}>invites</a>
+		   <a link={logoff ()}>logoff</a>
 		 </body>
 	       </xml>) 
 

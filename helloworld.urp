@@ -10,6 +10,7 @@ file /WhiteRook.svg fonts/merida/svg/WhiteRook.svg
 file /WhiteBishop.svg fonts/merida/svg/WhiteBishop.svg
 file /WhiteKnight.svg fonts/merida/svg/WhiteKnight.svg
 file /WhitePawn.svg fonts/merida/svg/WhitePawn.svg
+library ../urweb-base64/lib
 library ../urweb-canvas/src/canvas
 library ../urweb-filetext/filetext_FFI
 library ../urweb-nmarkdown/nmarkdown
