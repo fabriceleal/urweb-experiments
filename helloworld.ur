@@ -34,8 +34,13 @@ type userId = int
 table user: {Id: userId, Nam: string, Pass: Hash.digest, Salt: string }
 		PRIMARY KEY Id
 
+datatype inviteStatus =
+	 Sent
+       | Accepted
+       | Cancelled
 
-table invite : {Id: int, UserId: userId}(*, InvitedId: option userId}*) (*, Code: string, Email: string, Expires: time}*)
+(* , Status: inviteStatus *)
+table invite : {Id: int, UserId: userId, InvitedId: option userId, Code: string, Email: string, Sent: time}
 		   PRIMARY KEY Id
 
 table rootAdmin : { Id : userId }
@@ -68,6 +73,12 @@ fun currUser () =
       | Some r =>
 	row <- oneRow (SELECT user.Id, user.Nam FROM user WHERE user.Id = {[r.Id]} );
 	return (Some row.User)
+
+fun currUserId () =
+    ro <- getCookie login;
+    case ro of
+	None => return None
+      | Some r => return (Some r.Id)
 
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
  
@@ -879,23 +890,28 @@ blah [another link](/Helloworld/postPage2/3)
     </xml>
 
 and invites () =
-(*    rows <- query (SELECT * FROM invite WHERE invite.UserId = {[userid]})
-		  (fn data acc =>
-		      <xml>
-			{acc}
-			<tr>
-			  <td></td>
-			  <td></td>
-			</tr>
-		      </xml>);*)
-    return
-	<xml>
-	  <body>
-	    <table>
-
-	    </table>
-	  </body>
-	</xml>
+    u <- currUserId ();
+    case u of
+	None => error <xml>Not authenticated</xml>
+      | Some u' =>
+	(*
+	rows <- query (SELECT * FROM invite WHERE invite.UserId = {[u']})
+		      (fn data acc =>
+			  return <xml>
+			    {acc}
+			    <tr>
+			      <td></td>
+			      <td></td>
+			    </tr>
+			  </xml>);*)
+	return
+	    <xml>
+	      <body>
+		<table>
+		(*  {rows}*)
+		</table>
+	      </body>
+	    </xml>
 
 and main () =
     u <- currUser ();
