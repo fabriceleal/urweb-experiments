@@ -13,6 +13,7 @@ structure Room = Sharedboard.Make(struct
 sequence postSeq
 sequence positionSeq
 sequence commentSeq
+sequence inviteSeq
 
 table post : { Id : int, Nam : string, RootPositionId: int, CurrentPositionId : int, ParentPostId : option int, Room : Room.topic }
 		 PRIMARY KEY Id
@@ -30,9 +31,12 @@ open Pgn.Make(struct
 	      end)
 		
 type userId = int
-	      
+
+sequence userSeq
+
 table user: {Id: userId, Nam: string, Pass: Hash.digest, Salt: string }
 		PRIMARY KEY Id
+		CONSTRAINT Nam UNIQUE Nam
 
 datatype inviteStatus =
 	 Sent
@@ -40,19 +44,32 @@ datatype inviteStatus =
        | Cancelled
 
 (* , Status: inviteStatus *)
-table invite : {Id: int, UserId: userId, InvitedId: option userId, Code: string, Email: string, Sent: time}
-		   PRIMARY KEY Id
+table invite : {Id: int, UserId: userId, InvitedId: option userId, Code: string, Email: string, Sent: time, Status: int}
+		   PRIMARY KEY Id,
+		   CONSTRAINT Code UNIQUE Code,
+		   CONSTRAINT Email UNIQUE Email
 
 table rootAdmin : { Id : userId }
 		      PRIMARY KEY Id,
       CONSTRAINT Id FOREIGN KEY Id REFERENCES user(Id)
 
+fun insertUserWithId userid nam passS =
+    salt <- Random.bytes 64;
+    let
+	val saltEncoded = Base64_FFI.encode(salt)
+	val passraw = passS ^ saltEncoded
+	val pass = Hash.sha512 (textBlob passraw)
+    in
+	debug ("saltEncoded:" ^ saltEncoded);
+	dml (INSERT INTO user (Id, Nam, Pass, Salt) VALUES ({[userid]}, {[nam]}, {[pass]}, {[saltEncoded]}))
+    end
+      
 task initialize = fn () =>
     b <- nonempty rootAdmin;
     if b then
         return ()
     else
-	salt <- Random.bytes 64;
+	(* salt <- Random.bytes 64;
 	let
 	    val saltEncoded = Base64_FFI.encode(salt)
 	    val passraw = "root" ^ saltEncoded
@@ -61,7 +78,9 @@ task initialize = fn () =>
 	    debug ("saltEncoded:" ^ saltEncoded);
 	    dml (INSERT INTO user (Id, Nam, Pass, Salt) VALUES (0, 'root', {[pass]}, {[saltEncoded]}));
             dml (INSERT INTO rootAdmin (Id) VALUES (0))
-	end
+	end*)
+	insertUserWithId 0 "root" "root";
+	dml (INSERT INTO rootAdmin (Id) VALUES (0))
 
 
 cookie login : {Id: userId}
@@ -889,27 +908,166 @@ blah [another link](/Helloworld/postPage2/3)
       </body>
     </xml>
 
+and validateUsernamePolicy u =
+    (* check only for letters, numbers and underscore  *)    
+    (strlen u) > 3
+
+and validatePasswordPolicy p =
+    (strlen p) > 6
+    
+and validateNewUser u =
+    if validateUsernamePolicy u.Bleh then
+	if validatePasswordPolicy u.Blah then
+	    if u.Blah = u.ConfirmP then
+		invite <- oneOrNoRows (SELECT invite.Id FROM invite WHERE invite.Code = {[u.InviteCode]} AND invite.Status = 0);
+		case invite of
+		    None => return (Some "invalid invite code")
+		  | Some invite' => 		
+		    existing <- oneOrNoRows (SELECT user.Id FROM user WHERE user.Nam = {[u.Bleh]} );
+		    (case existing of
+			 None => return None
+		       | Some _ => return (Some "username already taken!"))
+	    else
+		return (Some "passwords dont match")	
+	else
+	    return (Some "password doesnt match policy: at least 6 characters long")
+    else
+	return (Some "username doesnt match policy: at least 3 characters long, using only letters numbers and _ ")
+
+and validateAndCreate u =
+    vRes <- validateNewUser u;
+    case vRes of
+	None =>
+	idU <- nextval userSeq;
+	dml (UPDATE invite SET InvitedId = {[Some idU]}, Status = 1 WHERE Code = {[u.InviteCode]} );
+	insertUserWithId idU u.Bleh u.Blah;
+	return None
+      | _ => return vRes
+    
+    (*
+and newUser u =
+    vRes <- validateNewUser u;
+    case vRes of
+	None =>
+	redirect (url (main ()))
+      | Some str =>
+	error <xml>{[str]}</xml>
+	*)
+	
+(*    redirect (url (main ()))*)
+	
+and createAccount invCode =
+    cinvitecode <- source invCode;
+    cnam <- source "";
+    cpass <- source "";
+    cpassconf <- source "";
+    cerr <- source "";
+    return <xml>
+      <body>
+
+	<h2>Sign Up</h2>
+
+	<dyn signal={m <- signal cerr; return <xml>{[m]}</xml>} />
+
+								<dyn signal={i <- signal cinvitecode;
+									     n <- signal cnam;
+									      p <- signal cpass;
+									      p2 <- signal cpassconf;
+									     return <xml>
+									       <active code={set cerr ""; return <xml/>} />
+									       </xml>} />
+	<div>
+	  Invite Code: <ctextbox source={cinvitecode} /> <br />
+	  Username: <ctextbox source={cnam}  /> <br />	  
+	  Password: <cpassword source={cpass} /> <br />
+	  Confirm: <cpassword source={cpassconf}  /> <br />
+
+	  <button onclick={fn _ =>
+			      set cerr "";
+			      invitecode <- get cinvitecode;
+			      nam <- get cnam;
+			      pass <- get cpass;
+			      passconf <- get cpassconf;
+			      res <- rpc (validateAndCreate {InviteCode=invitecode,Bleh=nam,Blah=pass,ConfirmP=passconf});
+			      case res of
+				  None => redirect (url (main ()))
+				| Some err => set cerr err
+			  } value="Sign Up"/>
+	</div>
+	
+      </body>
+    </xml>
+
+			   
+and generateInvite r =
+u <- currUserId ();
+    case u of
+	None => error <xml>Not authenticated</xml>
+      | Some u' =>	
+	id <- nextval inviteSeq;
+	sent <- now;
+	bytes <- Random.bytes 4;
+	dml (INSERT INTO invite (Id, Email, UserId, InvitedId, Code, Sent, Status)
+	     VALUES ({[id]}, {[r.To]}, {[u']}, {[None]}, {[Base64_FFI.encode bytes]}, {[sent]}, {[0]}));
+
+	minv <- oneOrNoRows (SELECT invite.Code FROM invite WHERE invite.Id = {[id]});
+
+	case minv of
+	    None => error <xml>Unable to create invite, please try again</xml>
+	  | Some inv => 
+	    return <xml>
+	      <body>
+		<h2>Invite</h2>
+
+		Code: <b>{[inv.Invite.Code]}</b> <br />
+
+		Copy (right click on link - Copy Link Location) and send this link:
+		
+		<a link={createAccount inv.Invite.Code}>Link</a>
+
+		<br />
+		<a link={invites ()}>Back to invite list</a>
+	      </body>
+	    </xml>
+    
 and invites () =
     u <- currUserId ();
     case u of
 	None => error <xml>Not authenticated</xml>
       | Some u' =>
-	(*
-	rows <- query (SELECT * FROM invite WHERE invite.UserId = {[u']})
+	
+	rows <- query (SELECT invite.Code, invite.InvitedId, invite.Email, invite.Status FROM invite WHERE invite.UserId = {[u']})
 		      (fn data acc =>
 			  return <xml>
 			    {acc}
 			    <tr>
-			      <td></td>
-			      <td></td>
+			      <td>{[data.Invite.Code]}</td>
+			      <td>{[data.Invite.Email]}</td>
+			      <td>
+				{case data.Invite.InvitedId of
+				     None => <xml><a link={createAccount data.Invite.Code}>Link</a></xml>
+				   | Some id => <xml>
+				     <a link={turtle id }>Accepted</a>
+				   </xml>
+				}
+			      </td>
 			    </tr>
-			  </xml>);*)
+			  </xml>) <xml/>; (**)
 	return
 	    <xml>
 	      <body>
+		<h2>Invites</h2>
+		
+		Send invite: you have x left
+		<form>
+		  <textbox{#To} />
+		  <submit action={generateInvite} />
+		</form>
+
+		<h3>Invites sent</h3>
 		<table>
-		(*  {rows}*)
-		</table>
+		  {rows}
+		</table>	
 	      </body>
 	    </xml>
 
@@ -934,7 +1092,9 @@ and main () =
 		 <body>
 		   <h1>Welcome to the turtle corner! {[u.Nam]}</h1>
 		   <a link={index ()}>index</a>
-		   <a link={invites ()}>invites</a>
+		   <a link={invites ()}>my invites</a>
+		   <a link={me ()}>my profile</a>
+		   <a link={myPosts ()}>my posts</a>
 		   <a link={logoff ()}>logoff</a>
 		 </body>
 	       </xml>) 
@@ -996,22 +1156,70 @@ and testUpload () =
 	  </body>
 	  </xml>
 
+and userProfile id =
+    me <- currUserId ();
+    case me of
+	None => error <xml>Not authenticated</xml>
+      | Some u' =>
+	let
+	    val isMe = u' = id
+	in
+	    return <xml>
+	      <body>
+		
+		<h2>{[case isMe of
+			  True => "My Profile"
+			| False => "User " ^ (show id)]}</h2>
 
-    
-and allPosts () =  (*
-  rows <- queryX (SELECT * FROM post)
-		 (fn data => <xml>
-		   <tr>
-		     <td>{[data.Post.Nam]}</td>
-		     <td>
-		       <form>
-			 <submit action={postPage data.Post.Id} value="Enter"/>
-		       </form>
-		     </td>
-		 </tr></xml>);*)
+		Username: ... <br />
+		
+		Change password ...
 
-    rows <- query (*SELECT * FROM post*)
-		(SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
+		Describe yourself ...
+
+		My Posts ...
+		
+	      </body>
+	    </xml>
+	end
+
+and allTurtles () =
+     rows <- query (SELECT user.Nam FROM user)		
+		  (fn data acc =>
+		      return <xml>{acc}
+			<tr>
+			  <td>{[data.User.Nam]}</td>
+			</tr>
+		      </xml>)
+		  <xml/>;    
+    return <xml>
+      <body>
+      <table border=1>
+	<tr><th>Name</th></tr>
+	{rows}
+      </table>
+      </body>
+    </xml>
+	
+and turtle id =
+    userProfile id
+
+and me () =
+    u <- currUserId ();
+    case u of
+	None => error <xml>Not authenticated</xml>
+      | Some u' => userProfile u'
+
+and myPosts () =
+    return <xml>
+      <body>
+	<h2>My posts</h2>
+	
+      </body>
+    </xml>
+		   
+and allPosts () =  
+    rows <- query (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
 		       FROM post
 			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
 			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id

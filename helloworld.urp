@@ -14,7 +14,7 @@ library ../urweb-base64/lib
 library ../urweb-canvas/src/canvas
 library ../urweb-filetext/filetext_FFI
 library ../urweb-nmarkdown/nmarkdown
-library ../urweb-ncrypto-hash-openssl/lib
+library $/crypto-hash-openssl/lib
 library $/crypto-random-openssl/lib
 safeGet Helloworld/allPosts
 database dbname=helloworld
