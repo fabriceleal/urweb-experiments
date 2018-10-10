@@ -7,6 +7,7 @@ open Canvasboard
 open Nmarkdown
 
 style form_signin
+style form_signin_sep
 
 structure Room = Sharedboard.Make(struct
 				      type t = boardmsg
@@ -943,39 +944,50 @@ and newUser u =
 (*    redirect (url (main ()))*)
 	
 and createAccount invCode =
+    	
     cinvitecode <- source invCode;
     cnam <- source "";
 (*    cemail <- source "";*)
     cpass <- source "";
     cpassconf <- source "";
     cerr <- source "";
+
+    idinvitecode <-fresh;
+    idnam <- fresh;
+    idpass <- fresh;
+    idpassconf <- fresh;
+	
     return <xml>
-      <body>
+      <head>
+	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
+	<link rel="stylesheet" type="text/css" href="/auth.css" />
+      </head>
+      <body class="text-center">
+	<div class="form-signin">
+	  
+	  <dyn signal={m <- signal cerr; return <xml>{[m]}</xml>}></dyn>
 
-	<h2>Sign Up</h2>
+	  <dyn signal={i <- signal cinvitecode;
+		       n <- signal cnam;
+		       p <- signal cpass;
+		       p2 <- signal cpassconf;
+		       return <xml>
+			 <active code={set cerr ""; return <xml/>} />
+								   </xml>}></dyn>
 
-	<dyn signal={m <- signal cerr; return <xml>{[m]}</xml>} />
+	  <label class="sr-only" for={idinvitecode}>Invite Code</label>
+	  <ctextbox id={idinvitecode} class="form-control form-signin-sep" placeholder="Invite Code" source={cinvitecode} />
+	  <label class="sr-only" for={idnam}>Username</label>
+	  <ctextbox source={cnam} class="form-control form-signin-sep" placeholder="Username" />
+	  <label class="sr-only" for={idpass}>Password</label>
+	  <cpassword source={cpass}  class="form-control form-signin-sep" placeholder="Password" />
+	  <label class="sr-only" for={idpassconf}>Confirm Password</label>
+	  <cpassword source={cpassconf}  class="form-control form-signin-sep" placeholder="Confirm Password" />
 
-								<dyn signal={i <- signal cinvitecode;
-									     n <- signal cnam;
-(*									     e <- signal cemail;*)
-									      p <- signal cpass;
-									      p2 <- signal cpassconf;
-									     return <xml>
-									       <active code={set cerr ""; return <xml/>} />
-									       </xml>} />
-	<div>
-	  Invite Code: <ctextbox source={cinvitecode} /> <br />
-(*	  Email: <ctextbox source={cemail}  /> <br />	  *)
-	  Username: <ctextbox source={cnam}  /> <br />	  
-	  Password: <cpassword source={cpass} /> <br />
-	  Confirm: <cpassword source={cpassconf}  /> <br />
-
-	  <button onclick={fn _ =>
+	  <button class="btn btn-lg btn-primary btn-block" onclick={fn _ =>
 			      set cerr "";
 			      invitecode <- get cinvitecode;
 			      nam <- get cnam;
-(*			      email <- get cemail;*)
 			      pass <- get cpass;
 			      passconf <- get cpassconf;
 			      res <- rpc (validateAndCreate {InviteCode=invitecode,Bleh=nam,Blah=pass,ConfirmP=passconf});
@@ -984,7 +996,6 @@ and createAccount invCode =
 				| Some err => set cerr err
 			  } value="Sign Up"/>
 	</div>
-	
       </body>
     </xml>
 
@@ -1005,8 +1016,7 @@ u <- currUserId ();
 	case minv of
 	    None => error <xml>Unable to create invite, please try again</xml>
 	  | Some inv => 
-	    return <xml>
-	      <body>
+	    genPage <xml>
 		<h2>Invite</h2>
 
 		Code: <b>{[inv.Invite.Code]}</b> <br />
@@ -1014,16 +1024,12 @@ u <- currUserId ();
 		Copy (right click on link - Copy Link Location) and send this link:
 		
 		<a link={createAccount inv.Invite.Code}>Link</a>
-
-		<br />
-		<a link={invites ()}>Back to invite list</a>
-	      </body>
 	    </xml>
     
 and invites () =
     u <- currUserId ();
     case u of
-	None => error <xml>Not authenticated</xml>
+	None => redirect (url (index ()))
       | Some u' =>
 	
 	rows <- query (SELECT invite.Code, invite.InvitedId, invite.Email, invite.Status FROM invite WHERE invite.UserId = {[u']})
@@ -1043,9 +1049,8 @@ and invites () =
 			      </td>
 			    </tr>
 			  </xml>) <xml/>; (**)
-	return
-	    <xml>
-	      <body>
+	genPage
+	    <xml>	      
 		<h2>Invites</h2>
 		
 		Send invite: you have x left
@@ -1055,10 +1060,16 @@ and invites () =
 		</form>
 
 		<h3>Invites sent</h3>
-		<table>
-		  {rows}
-		</table>	
-	      </body>
+		<div class="table-responsive">
+		  <table class="bs-table table-striped table-sm">
+		    <tr>
+		      <th>Invite Code</th>
+		      <th>Email</th>
+		      <th>Status</th>
+		    </tr>
+		    {rows}
+		  </table>
+		</div>
 	    </xml>
 
 and index () =
@@ -1357,6 +1368,7 @@ and generateMenu () =
 	<li class="nav-item"><a class="nav-link" link={index ()}>Home</a></li>
 	<li class="nav-item"><a class="nav-link" link={allPosts ()}>All Posts</a></li>
 	<li class="nav-item"><a class="nav-link" link={me ()}>My Profile</a></li>
+	<li class="nav-item"><a class="nav-link" link={invites ()}>My Invites</a></li>
       </ul>
     </xml>
 
@@ -1409,9 +1421,9 @@ and index_login () =
       <body class="text-center">
 	<form class="form-signin">
 	  <label class="sr-only" for={userid}>User</label>
-	  <textbox{#Nam} id={userid} class="form-control" placeholder="User" />
+	  <textbox{#Nam} id={userid} class="form-control form-signin-sep" placeholder="User" />
 	  <label class="sr-only" for={passid}>Pass</label>
-	  <password{#Pass} id={passid} class="form-control" placeholder="Password" />
+	  <password{#Pass} id={passid} class="form-control form-signin-sep" placeholder="Password" />
 	  <submit class="btn btn-lg btn-primary btn-block" action={logon} value="Sign In" />
 	</form>
       </body>
