@@ -16,6 +16,7 @@ library ../urweb-filetext/filetext_FFI
 library ../urweb-nmarkdown/nmarkdown
 library $/crypto-hash-openssl/lib
 library $/crypto-random-openssl/lib
+library $/bootstrap/bootstrap4
 safeGet Helloworld/allPosts
 database dbname=helloworld
 sql helloworld.sql
@@ -24,19 +25,16 @@ allow mime application/octet-stream
 rewrite all ContentDisposition/*
 allow responseHeader Content-Disposition
 allow url /Helloworld/allPosts
+file /bodyn.css rsrc/css/bodyn.css
+file /bodyj.css rsrc/css/bodyj.css
+file /auth.css rsrc/css/auth.css
 file /exp.css rsrc/css/exp.css
-rewrite style Canvasboard/move_clickable move-clickable
-rewrite style Canvasboard/wrapping_span wrapping-span
+rewrite style Canvasboard/* [-]
+rewrite style Helloworld/* [-]
 file /bootstrap.min.css rsrc/css/bootstrap.min.css
-rewrite style Bootstrap4/container container
-rewrite style Bootstrap4/row row
-rewrite style Bootstrap4/col_sm_2 col-sm-2
-rewrite style Bootstrap4/col_sm_4 col-sm-4
-rewrite style Bootstrap4/col_sm_6 col-sm-6
 
 $/string
 $/list
-$/bootstrap/bootstrap4
 ../urweb-nregex/nregex
 ../urweb-nregex/nregexpgn
 sharedboard

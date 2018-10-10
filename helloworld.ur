@@ -6,6 +6,8 @@ open Pgnparse
 open Canvasboard
 open Nmarkdown
 
+style form_signin
+
 structure Room = Sharedboard.Make(struct
 				      type t = boardmsg
 				  end)
@@ -866,12 +868,6 @@ and downloadPost id =
 		  ("attachment; filename=post_" ^ (show id) ^ ".pgn");
 	returnBlob (textBlob (renderPgn tree)) (blessMime "application/octet-stream")
     end
-     
-and index () = return <xml>
-  <body>index
-    <a link={createPost ()}>create post</a>
-    <a link={allPosts  ()}>all posts</a>
-</body></xml>
 
 and logon r =    
     ro <- oneOrNoRows (SELECT user.Id, user.Pass, user.Salt FROM user WHERE user.Nam = {[r.Nam]});
@@ -883,7 +879,7 @@ and logon r =
 	in
 	    if hashed = r'.User.Pass then
 		setCookie login {Value = {Id=r'.User.Id}, Secure=False, Expires = None};
-		redirect (url (main ()))
+		redirect (url (index ()))
 	    else
 		error <xml>Wrong user or pass!</xml>
 	end
@@ -891,7 +887,7 @@ and logon r =
 
 and logoff () =
     clearCookie login;
-    redirect (url (main ()))
+    redirect (url (index ()))
 
 and testMk () =
     return <xml>
@@ -990,7 +986,7 @@ and createAccount invCode =
 			      passconf <- get cpassconf;
 			      res <- rpc (validateAndCreate {InviteCode=invitecode,Bleh=nam,Blah=pass,ConfirmP=passconf});
 			      case res of
-				  None => redirect (url (main ()))
+				  None => redirect (url (index ()))
 				| Some err => set cerr err
 			  } value="Sign Up"/>
 	</div>
@@ -1071,7 +1067,7 @@ and invites () =
 	      </body>
 	    </xml>
 
-and main () =
+and index () =
     u <- currUser ();
     return (case u of
 	       None =>
@@ -1096,6 +1092,8 @@ and main () =
 		   <a link={me ()}>my profile</a>
 		   <a link={myPosts ()}>my posts</a>
 		   <a link={logoff ()}>logoff</a>
+		   <a link={createPost ()}>create post</a>
+		   <a link={allPosts  ()}>all posts</a>
 		 </body>
 	       </xml>) 
 
@@ -1339,8 +1337,90 @@ and addPost newPost =
 	    end
 	end
     
-    
+and fullBootstrap () =
+    return <xml>
+      <head>
+	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
+	<link rel="stylesheet" type="text/css" href="/exp.css" />
+	<link rel="stylesheet" type="text/css" href="/bodyn.css" />
+      </head>
+      <body>
+	<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+	  { generateMenu () }
+	</nav>
+	<main class="container">
+	  <div>
+	    <h1>test</h1>
+	    <p class="lead">blah blah blah</p>
+	  </div>
+	</main>
+      </body>
+    </xml>
 
+and generateMenu () =
+    <xml>
+      <ul class="navbar-nav mr-auto">
+	<li class="nav-item"><a class="nav-link" link={index ()}>Home</a></li>
+	<li class="nav-item"><a class="nav-link" link={me ()}>My Profile</a></li>
+      </ul>
+    </xml>
+
+and fullBootstrap2 () =
+    return <xml>
+      <head>
+	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
+	<link rel="stylesheet" type="text/css" href="/exp.css" />
+	<link rel="stylesheet" type="text/css" href="/bodyj.css" />
+      </head>
+      <body>
+	<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+	    { generateMenu () }
+	</nav>
+	<main>
+	  <div class="jumbotron">
+	    <div class="container">
+	      <h1>test</h1>
+	      <p class="lead">blah blah blah</p>
+	    </div>
+	  </div>
+	  <div class="container">
+	    <div class="row">
+	      <div class="col-md-4">
+		<h2>do this</h2>
+		<p>you can do this</p>
+	      </div>
+	      <div class="col-md-4">
+		<h2>do that</h2>
+		<p>you can also do that!</p>		
+	      </div>
+	      <div class="col-md-4">
+		<h2>or procrastinate</h2>
+		<p>procrastinate!</p>
+	      </div>
+	    </div>
+	  </div>
+	</main>
+      </body>
+    </xml>
+
+and fullBootstrap3 () =
+    userid <- fresh;
+    passid <- fresh;
+    return <xml>
+      <head>
+	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
+	<link rel="stylesheet" type="text/css" href="/auth.css" />
+      </head>
+      <body class="text-center">
+	<form class="form-signin">
+	  <label class="sr-only" for={userid}>User</label>
+	  <textbox{#Nam} id={userid} class="form-control" placeholder="User" />
+	  <label class="sr-only" for={passid}>Pass</label>
+	  <password{#Pass} id={passid} class="form-control" placeholder="Password" />
+	  <submit class="btn btn-lg btn-primary btn-block" action={logon} value="Sign In" />
+	</form>
+      </body>
+    </xml>
 
 and testResponsive () =
     return <xml>
