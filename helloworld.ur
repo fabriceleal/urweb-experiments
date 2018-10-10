@@ -338,7 +338,7 @@ and postPage2 id () =
     commenttxt <- source "";
     newpostname <- source "";
 
-    genPage <xml>
+    genPageU <xml>
 	<div class={container}>
 	  post # {[id]}
 	  
@@ -1001,7 +1001,7 @@ and createAccount invCode =
 
 			   
 and generateInvite r =
-u <- currUserId ();
+    u <- currUser ();
     case u of
 	None => error <xml>Not authenticated</xml>
       | Some u' =>	
@@ -1009,7 +1009,7 @@ u <- currUserId ();
 	sent <- now;
 	bytes <- Random.bytes 4;
 	dml (INSERT INTO invite (Id, Email, UserId, InvitedId, Code, Sent, Status)
-	     VALUES ({[id]}, {[r.To]}, {[u']}, {[None]}, {[Base64_FFI.encode bytes]}, {[sent]}, {[0]}));
+	     VALUES ({[id]}, {[r.To]}, {[u'.Id]}, {[None]}, {[Base64_FFI.encode bytes]}, {[sent]}, {[0]}));
 
 	minv <- oneOrNoRows (SELECT invite.Code FROM invite WHERE invite.Id = {[id]});
 
@@ -1024,15 +1024,15 @@ u <- currUserId ();
 		Copy (right click on link - Copy Link Location) and send this link:
 		
 		<a link={createAccount inv.Invite.Code}>Link</a>
-	    </xml>
+	    </xml> u'
     
 and invites () =
-    u <- currUserId ();
+    u <- currUser ();
     case u of
 	None => redirect (url (index ()))
       | Some u' =>
 	
-	rows <- query (SELECT invite.Code, invite.InvitedId, invite.Email, invite.Status FROM invite WHERE invite.UserId = {[u']})
+	rows <- query (SELECT invite.Code, invite.InvitedId, invite.Email, invite.Status FROM invite WHERE invite.UserId = {[u'.Id]})
 		      (fn data acc =>
 			  return <xml>
 			    {acc}
@@ -1048,7 +1048,7 @@ and invites () =
 				}
 			      </td>
 			    </tr>
-			  </xml>) <xml/>; (**)
+			  </xml>) <xml></xml>; (**)
 	genPage
 	    <xml>	      
 		<h2>Invites</h2>
@@ -1070,7 +1070,7 @@ and invites () =
 		    {rows}
 		  </table>
 		</div>
-	    </xml>
+	    </xml> u'
 
 and index () =
     u <- currUser ();
@@ -1103,7 +1103,7 @@ and index () =
 		   <a link={allPosts  ()}>all posts</a>
 		 </body>
 		 </xml> *)
-	       index_on ()
+	       index_on u
 
 and handleTestUpload r =
     return <xml>
@@ -1205,17 +1205,17 @@ and allTurtles () =
       </body>
     </xml>
 	
-and turtle id =
+and turtle id =    
     c <- userProfile id;
-    genPage c
+    genPageU c
 
 and me () =
-    u <- currUserId ();
+    u <- currUser ();
     case u of
 	None => redirect (url (index ())) (* error <xml>Not authenticated</xml> *)
       | Some u' =>
-	c <- userProfile u';
-	genPage c
+	c <- userProfile u'.Id;
+	genPage c u'
 
 and myPosts () =
     return <xml>
@@ -1255,7 +1255,7 @@ and allPosts () =
 		      </xml>)
 		  <xml></xml>;
 		  
-    genPage <xml>
+    genPageU <xml>
       <table border=1>
 	<tr><th>Name</th><th>Board</th><th>Actions</th></tr>
 	{rows}
@@ -1342,8 +1342,14 @@ and addPost newPost =
 		redirect (url (allPosts ()))
 	    end
 	end
+
+and genPageU content =
+    u' <- currUser ();
+    case u' of
+	None => redirect (url (index ()))
+      | Some u => genPage content u
     
-and genPage content =
+and genPage content u =
     return <xml>
       <head>
 	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
@@ -1352,7 +1358,7 @@ and genPage content =
       </head>
       <body>
 	<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
-	  { generateMenu () }
+	  { generateMenu u }
 	</nav>
 	<main class="container">
 	  <div>
@@ -1362,17 +1368,25 @@ and genPage content =
       </body>
     </xml>
 
-and generateMenu () =
+and generateMenu u =
     <xml>
       <ul class="navbar-nav mr-auto">
 	<li class="nav-item"><a class="nav-link" link={index ()}>Home</a></li>
-	<li class="nav-item"><a class="nav-link" link={allPosts ()}>All Posts</a></li>
+	<li class="nav-item"><a class="nav-link" link={allPosts ()}>My Posts</a></li>
+	<li class="nav-item"><a class="nav-link" link={allPosts ()}>My Classrooms</a></li>
 	<li class="nav-item"><a class="nav-link" link={me ()}>My Profile</a></li>
 	<li class="nav-item"><a class="nav-link" link={invites ()}>My Invites</a></li>
       </ul>
+
+      <ul class="navbar-nav">
+	<li class="nav-item"><span class="navbar-brand">{[u.Nam]}</span></li>
+	<li class="nav-item">
+	  <a class="nav-link" link={logoff()}>Logoff</a>	     
+	</li>
+      </ul>
     </xml>
 
-and index_on () =
+and index_on u =
     return <xml>
       <head>
 	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
@@ -1381,7 +1395,7 @@ and index_on () =
       </head>
       <body>
 	<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
-	    { generateMenu () }
+	    { generateMenu u }
 	</nav>
 	<main>
 	  <div class="jumbotron">
