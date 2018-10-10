@@ -300,7 +300,7 @@ fun getComments (id : int) : transaction (list string) =
 fun doSpeak id line =	 
     rpc (speak id line)
 
-fun renderPostTree id =
+fun renderPostTree (id : int) : transaction xbody =
     let
         fun recurse (root : option int) =
             queryX' (SELECT * FROM post WHERE {eqNullable' (SQL post.ParentPostId) root})
@@ -327,7 +327,7 @@ and postPage2 id () =
 			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
 			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
 		       WHERE post.Id = {[id]});
-    postTree <- renderPostTree id;
+(*    postTree <- renderPostTree id; *)
     cid <- fresh;
     ch <- Room.subscribe current.Post.Room;
     (boardy, pgnviewer, commentviewer) <- generate_board current.Position.Fen cid 60 True
@@ -336,13 +336,8 @@ and postPage2 id () =
 							 (fn s => doSpeak current.Post.Id s) ch;
     commenttxt <- source "";
     newpostname <- source "";
-    return <xml>
-      <head>
-	<title>Post # {[id]}</title>
-	<link rel="stylesheet" type="text/css" href="/exp.css"/>
-	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
-      </head>
-      <body>
+
+    genPage <xml>
 	<div class={container}>
 	  post # {[id]}
 	  
@@ -350,13 +345,10 @@ and postPage2 id () =
 	    
 	    <div class={col_sm_2}>
 
-	      <a link={index()}>another page</a>
-	      <a link={allPosts()}>all posts</a>
-	      
 	      <button value="Back" onclick={fn _ => doSpeak id SBack } />
 		<button value="Fw" onclick={fn _ => doSpeak id SForward } />
 		  <a link={downloadPost id}>download</a>
-
+(*
 		  { postTree }
 
 		  <div>
@@ -365,7 +357,7 @@ and postPage2 id () =
 							       nam <- get newpostname;
 							       doSpeak id (SNewPost (Some id, nam));
 							       set newpostname "" } />
-		  </div>
+		  </div> *)
 	    </div>
 	    <div class={col_sm_6}>
 	      {boardy}
@@ -385,9 +377,7 @@ and postPage2 id () =
 	    </div>
 	  </div>
 	</div>
-	
-      </body>
-    </xml>
+	  </xml>
     (*
 and  postPage id () =
     
@@ -955,6 +945,7 @@ and newUser u =
 and createAccount invCode =
     cinvitecode <- source invCode;
     cnam <- source "";
+(*    cemail <- source "";*)
     cpass <- source "";
     cpassconf <- source "";
     cerr <- source "";
@@ -967,6 +958,7 @@ and createAccount invCode =
 
 								<dyn signal={i <- signal cinvitecode;
 									     n <- signal cnam;
+(*									     e <- signal cemail;*)
 									      p <- signal cpass;
 									      p2 <- signal cpassconf;
 									     return <xml>
@@ -974,6 +966,7 @@ and createAccount invCode =
 									       </xml>} />
 	<div>
 	  Invite Code: <ctextbox source={cinvitecode} /> <br />
+(*	  Email: <ctextbox source={cemail}  /> <br />	  *)
 	  Username: <ctextbox source={cnam}  /> <br />	  
 	  Password: <cpassword source={cpass} /> <br />
 	  Confirm: <cpassword source={cpassconf}  /> <br />
@@ -982,6 +975,7 @@ and createAccount invCode =
 			      set cerr "";
 			      invitecode <- get cinvitecode;
 			      nam <- get cnam;
+(*			      email <- get cemail;*)
 			      pass <- get cpass;
 			      passconf <- get cpassconf;
 			      res <- rpc (validateAndCreate {InviteCode=invitecode,Bleh=nam,Blah=pass,ConfirmP=passconf});
@@ -1069,9 +1063,9 @@ and invites () =
 
 and index () =
     u <- currUser ();
-    return (case u of
+    case u of
 	       None =>
-	       <xml>
+	       (* <xml>
 		 <body>
 		   <form>
 		     <table>
@@ -1082,9 +1076,11 @@ and index () =
 		     </table>
 		   </form>
 		 </body>
-	       </xml>
+		 </xml> *)
+	       index_login ()
+	       
 	     | Some u => 
-	       <xml>
+	       (* <xml>
 		 <body>
 		   <h1>Welcome to the turtle corner! {[u.Nam]}</h1>
 		   <a link={index ()}>index</a>
@@ -1095,7 +1091,8 @@ and index () =
 		   <a link={createPost ()}>create post</a>
 		   <a link={allPosts  ()}>all posts</a>
 		 </body>
-	       </xml>) 
+		 </xml> *)
+	       index_on ()
 
 and handleTestUpload r =
     return <xml>
@@ -1163,8 +1160,7 @@ and userProfile id =
 	    val isMe = u' = id
 	in
 	    return <xml>
-	      <body>
-		
+	      
 		<h2>{[case isMe of
 			  True => "My Profile"
 			| False => "User " ^ (show id)]}</h2>
@@ -1177,7 +1173,6 @@ and userProfile id =
 
 		My Posts ...
 		
-	      </body>
 	    </xml>
 	end
 
@@ -1200,13 +1195,16 @@ and allTurtles () =
     </xml>
 	
 and turtle id =
-    userProfile id
+    c <- userProfile id;
+    genPage c
 
 and me () =
     u <- currUserId ();
     case u of
-	None => error <xml>Not authenticated</xml>
-      | Some u' => userProfile u'
+	None => redirect (url (index ())) (* error <xml>Not authenticated</xml> *)
+      | Some u' =>
+	c <- userProfile u';
+	genPage c
 
 and myPosts () =
     return <xml>
@@ -1239,22 +1237,19 @@ and allPosts () =
 			 <submit action={postPage data.Post.Id} value="Enter"/>
 		       </form>*)
 		       <form>
-			 <submit action={postPage2 data.Post.Id} value="Enter 2"/>
+			 <submit action={postPage2 data.Post.Id} value="Enter Room"/>
 		       </form>
 		     </td>
 		      </tr>
 		      </xml>)
-		  <xml/>;
-    
-    return <xml>
-      <body>
+		  <xml></xml>;
+		  
+    genPage <xml>
       <table border=1>
 	<tr><th>Name</th><th>Board</th><th>Actions</th></tr>
 	{rows}
       </table>
-
       <a link={createPost ()}>Create Post</a>
-      </body>
     </xml>
  
 and createPost () = return <xml>
@@ -1337,7 +1332,7 @@ and addPost newPost =
 	    end
 	end
     
-and fullBootstrap () =
+and genPage content =
     return <xml>
       <head>
 	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
@@ -1350,8 +1345,7 @@ and fullBootstrap () =
 	</nav>
 	<main class="container">
 	  <div>
-	    <h1>test</h1>
-	    <p class="lead">blah blah blah</p>
+	    { content }
 	  </div>
 	</main>
       </body>
@@ -1361,11 +1355,12 @@ and generateMenu () =
     <xml>
       <ul class="navbar-nav mr-auto">
 	<li class="nav-item"><a class="nav-link" link={index ()}>Home</a></li>
+	<li class="nav-item"><a class="nav-link" link={allPosts ()}>All Posts</a></li>
 	<li class="nav-item"><a class="nav-link" link={me ()}>My Profile</a></li>
       </ul>
     </xml>
 
-and fullBootstrap2 () =
+and index_on () =
     return <xml>
       <head>
 	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
@@ -1403,7 +1398,7 @@ and fullBootstrap2 () =
       </body>
     </xml>
 
-and fullBootstrap3 () =
+and index_login () =
     userid <- fresh;
     passid <- fresh;
     return <xml>
