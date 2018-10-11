@@ -18,6 +18,7 @@ library $/crypto-hash-openssl/lib
 library $/crypto-random-openssl/lib
 library $/bootstrap/bootstrap4
 safeGet Helloworld/allPosts
+safeGet Helloworld/postPage2
 database dbname=helloworld
 sql helloworld.sql
 allow mime text/plain

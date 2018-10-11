@@ -1108,19 +1108,59 @@ and index () =
 and handleTestUpload r =
     return <xml>
       <body>
-(*	      {
+	content
+	{[Filetext_FFI.blobAsText (fileData r.Fil)]}
+(*
+	<br />
+	test1
+	{[show (strsub (Filetext_FFI.blobAsText (fileData r.Fil)) 0)]}
+
+	<br />
+	split
+	{case (Pgnparse.split (Filetext_FFI.blobAsText (fileData r.Fil))) of
+	      (lstr, str) =>
+	      <xml><div>l str: {[show lstr]}</div><div>rest: {[str]}</div></xml>}
+	
+	<br />
+	game test
+
+	{case (Pgnparse.split (Filetext_FFI.blobAsText (fileData r.Fil))) of
+	     (lstr, str) =>
+	     <xml>
+	       Decomposed:
+	       {List.foldr (fn i2 acc2 =>
+						   <xml>
+						     <div>
+						     {
+						      List.foldr (fn i3 acc3 => <xml>
+							<div>
+							{[case i3 of
+							      (grp,tag) => (show grp) ^" " ^ (show tag)]}
+							</div>
+							{acc3}</xml>) <xml></xml> i2
+						     }
+						     </div>
+
+						     {acc2}
+						   </xml>
+					       ) <xml></xml> (Nregexpgn.matchMoves lstr)}
+	       <br/>
+	       Game:
+	       {[show (Pgnparse.stringLToGame lstr)]}
+	     </xml>} *)
+	<br />
+	
+	lines
+	      {
 	       List.foldr
 		   (fn i acc => <xml><div>{
 
 				List.foldr (fn i2 acc2 => <xml><div>{[i2]}</div> {acc2}</xml>) <xml></xml> i
 				
 				} </div> <div>+</div> {acc}</xml>) <xml></xml> (pgnsToStrs (Filetext_FFI.blobAsText (fileData r.Fil))) }
-*)
-	      {
-	       List.foldr
-		   (fn i acc => <xml><div>{[show i]} </div> {acc}</xml>) <xml></xml> (pgnsToGames (Filetext_FFI.blobAsText (fileData r.Fil))) }
-
-(*
+	      
+	      <br />
+	      lexems
 	      {
 	       List.foldr
 		   (fn i acc => <xml><div>{
@@ -1147,7 +1187,14 @@ and handleTestUpload r =
 				    
 				end
 				
-				} </div> <div>+</div> {acc}</xml>) <xml></xml> (pgnsToStrs (Filetext_FFI.blobAsText (fileData r.Fil))) }*)
+				} </div> <div>+</div> {acc}</xml>) <xml></xml> (pgnsToStrs (Filetext_FFI.blobAsText (fileData r.Fil))) }
+
+	      <br />
+	      games
+	      
+	      {
+	       List.foldr
+		   (fn i acc => <xml><div>{[show i]} </div> {acc}</xml>) <xml></xml> (pgnsToGames (Filetext_FFI.blobAsText (fileData r.Fil))) }
 	      
       </body>
     </xml>
@@ -1248,33 +1295,49 @@ and allPosts () =
 			 <submit action={postPage data.Post.Id} value="Enter"/>
 		       </form>*)
 		       <form>
-			 <submit action={postPage2 data.Post.Id} value="Enter Room"/>
+			 (*<submit class="btn btn-success" action={postPage2 data.Post.Id} value="Enter Room"/> *)
+			 <a class="btn btn-success" link={postPage2 data.Post.Id ()}>Enter Room</a>
 		       </form>
 		     </td>
 		      </tr>
 		      </xml>)
 		  <xml></xml>;
 		  
-    genPageU <xml>
-      <table border=1>
-	<tr><th>Name</th><th>Board</th><th>Actions</th></tr>
-	{rows}
-      </table>
-      <a link={createPost ()}>Create Post</a>
-    </xml>
+		  genPageU <xml>
+		    <h3>Posts</h3>
+		    <a class="btn btn-primary" link={createPost ()}>Create</a>
+		    <div class="table-responsive">
+		      <table class="bs-table table-striped table-sm">
+			<tr><th>Name</th><th>Board</th><th>Actions</th></tr>
+			{rows}
+		      </table>
+		    </div>
+		  </xml>
  
-and createPost () = return <xml>
-  <body>
-    <form>
-      <table>	
-	<tr><th>Name:</th><td><textbox{#Nam}/></td></tr>
-	<tr><th>File (optional):</th><td><upload{#Fil}/></td></tr>
-	<tr><td><textarea{#Pgn}/></td></tr>
-	<tr><th/><td><submit action={addPost} value="Create" /></td></tr>
-      </table>
-    </form>
-  </body>
-</xml>
+and createPost () =
+    inPgn <- fresh;
+    inNam <- fresh;
+    inFile <- fresh;
+    genPageU <xml>
+      <form>
+	<div class="form-row">
+	  <div class="form-group col-md-6">
+	    <label for={inNam}>Name</label>
+	    <textbox{#Nam} id={inNam} class="form-control"/>
+	  </div>
+	</div>
+	<div class="form-group">
+	  <label for={inFile}>Upload pgn file</label>
+	  <upload{#Fil} id={inFile} class="form-control-file"/>
+	</div>
+	<div class="form-group">
+	  <label for={inPgn}>Paste pgn</label>
+	  <textarea{#Pgn} id={inPgn} class="form-control"/>
+	</div>
+	<submit action={addPost} value="Create" />
+	
+      </form>
+    </xml>
 
 
 and addPost newPost =
@@ -1328,19 +1391,16 @@ and addPost newPost =
 	    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId)
 		 VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[None]}));
 	    
-	    importTree id idP tree
+	    importTree id idP tree;
+	    return id
     
     in
     
 	if blobSize (fileData newPost.Fil) > 10000 then
-	    return <xml>too big</xml>
-	else
-	    let
-		val tree = pgnToGame newPost.Pgn
-	    in
-		insertPost tree;	    
-		redirect (url (allPosts ()))
-	    end
+	    return (error <xml>too big</xml>)
+	else	
+	    id <- insertPost (pgnToGame newPost.Pgn);	    
+	    redirect (url (postPage2 id ()))
 	end
 
 and genPageU content =
@@ -1373,7 +1433,6 @@ and generateMenu u =
       <ul class="navbar-nav mr-auto">
 	<li class="nav-item"><a class="nav-link" link={index ()}>Home</a></li>
 	<li class="nav-item"><a class="nav-link" link={allPosts ()}>My Posts</a></li>
-	<li class="nav-item"><a class="nav-link" link={allPosts ()}>My Classrooms</a></li>
 	<li class="nav-item"><a class="nav-link" link={me ()}>My Profile</a></li>
 	<li class="nav-item"><a class="nav-link" link={invites ()}>My Invites</a></li>
       </ul>
@@ -1400,23 +1459,23 @@ and index_on u =
 	<main>
 	  <div class="jumbotron">
 	    <div class="container">
-	      <h1>test</h1>
-	      <p class="lead">blah blah blah</p>
+	      <h1>Turtle corner</h1>
+	      <p class="lead">In construction</p>
 	    </div>
 	  </div>
 	  <div class="container">
 	    <div class="row">
 	      <div class="col-md-4">
-		<h2>do this</h2>
-		<p>you can do this</p>
+		<h2>Share games</h2>
+		<a link={createPost ()} class="btn btn-primary">Upload a Game</a>
 	      </div>
 	      <div class="col-md-4">
-		<h2>do that</h2>
-		<p>you can also do that!</p>		
+		<h2>Study</h2>
+		<a link={allPosts ()} class="btn btn-primary">All Games</a>
 	      </div>
 	      <div class="col-md-4">
-		<h2>or procrastinate</h2>
-		<p>procrastinate!</p>
+		<h2>Relax</h2>
+		<p>Yeah ... just relax</p>
 	      </div>
 	    </div>
 	  </div>
