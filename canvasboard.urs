@@ -11,7 +11,8 @@ datatype boardmsg =
 	 Highlight of square
        | Position of position
        | Comment of string
-		 
+       | ChangeName of string
+			
 type rawPoint = { RawX: int, RawY : int}
 
 type draggingPiece = { Src: rawPoint, Current: rawPoint, Piece: piece }
@@ -30,11 +31,18 @@ datatype serverboardmsg =
        | SPosition of int
        | SComment of string
        | SNewPost of option int * string
-		      
-val generate_board : string -> id -> int -> bool ->
+       | SChangeName of int * string
+
+val emptyTopLevelHandler : boardmsg -> transaction unit
+
+val generate_board : string ->
+		     id ->
+		     int ->
+		     bool ->
 		     (unit -> transaction pgnRoot) ->
 		     (unit -> transaction (list string)) ->
 		     (serverboardmsg -> transaction unit) ->
+		     (boardmsg -> transaction unit) ->
 		     channel boardmsg ->
 		     transaction (xbody * xbody * xbody)
 

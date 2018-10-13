@@ -18,13 +18,15 @@ sequence positionSeq
 sequence commentSeq
 sequence inviteSeq
 
-table post : { Id : int, Nam : string, RootPositionId: int, CurrentPositionId : int, ParentPostId : option int, Room : Room.topic }
+type userId = int
+	      
+table post : { Id : int, Nam : string, RootPositionId: int, UserId: userId, CurrentPositionId : int, ParentPostId : option int, Room : Room.topic }
 		 PRIMARY KEY Id
 	     
 table position : {Id: int, PostId: int, Fen : string, Move: option string, MoveAlg: option string, PreviousPositionId: option int }
 		     PRIMARY KEY Id
 
-table comment : {Id: int, PositionId: int, Content: string }
+table comment : {Id: int, PositionId: int, Content: string, UserId: userId, Sent: time  }
 		    PRIMARY KEY Id
 
 open Pgn.Make(struct
@@ -33,8 +35,6 @@ open Pgn.Make(struct
 		  val tab = position
 	      end)
 		
-type userId = int
-
 sequence userSeq
 
 table user: {Id: userId, Nam: string, Pass: Hash.digest, Salt: string }
@@ -109,7 +109,7 @@ val dark = make_rgba 119 138 181 1.0
 val red = make_rgba 255 0 0 1.0
 val promBg = make_rgba 244 244 244 1.0
 val promBgSel = make_rgba 211 211 211 1.0
-val size = 60
+val size = 55
 val x = 10
 val y = 10
 val offProm = 2
@@ -151,7 +151,7 @@ fun getRoom id =
     r <- oneRow (SELECT post.Room FROM post WHERE post.Id = {[id]});
     return r.Post.Room
 
-fun addPostF idPostParent txt =
+fun addPostF idUser idPostParent txt =
     let
 
 	fun importChildren id idP fen children =
@@ -199,8 +199,8 @@ fun addPostF idPostParent txt =
 	    idP <- nextval positionSeq;
 	    sharedboard <- Room.create;
     
-	    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId)
-		 VALUES ({[id]}, {[txt]}, {[idP]}, {[idP]}, {[sharedboard]}, {[idPostParent]}));
+	    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId)
+		 VALUES ({[id]}, {[txt]}, {[idP]}, {[idP]}, {[sharedboard]}, {[idPostParent]}, {[idUser]}));
 	    
 	    importTree id idP tree
 
@@ -211,85 +211,94 @@ fun addPostF idPostParent txt =
 
 
 fun speak id line =
-    case line of
-	SMovePiece (src, dest, kind) =>
+    mUserId <- currUserId ();
+    case mUserId of
+	None => return ()
+      | Some userId => 
+	case line of
+	    SMovePiece (src, dest, kind) =>
 
-	(* TODO check if move was already played *)
-	
-	idP <- nextval positionSeq;
-	
-	row <- oneRow (SELECT post.CurrentPositionId, position.Fen
-		       FROM post JOIN position ON post.CurrentPositionId = position.Id
-		       WHERE post.Id = {[id]} );
-	
-	let
-	    val state = fen_to_state row.Position.Fen
-	    val move = {Src=src, Dest=dest, Prom = kind}
-	in		     
-	    case (doMove state move) of
-		 | None => return ()
-		 | Some manipulated =>
-		   let			     
-		       val newFen = state_to_fen manipulated
-		       val newMove = moveStr move
-		       val newMoveAlg = moveToAlgebraicClean state move manipulated
-		   in			 
-		       dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
-		       dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId)
-			    VALUES ({[idP]}, {[id]}, {[newFen]}, {[Some newMove]}, {[Some newMoveAlg]},
-				{[Some row.Post.CurrentPositionId]}) );
-		       
-		       room <- getRoom id;
-		       
-		       Room.send room (Position {State = (fen_to_state newFen), Id = idP, Highlight = []})
-		   end
-	end
-      | SBack =>		
-	row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
-	row2 <- oneRow (SELECT position.Id, position.Fen
-			FROM position
-			WHERE position.PostId = {[id]} AND position.Id < {[row.Post.CurrentPositionId]}
-			ORDER BY position.Id DESC LIMIT 1);
-	let
-	    val idP = row2.Position.Id
-	in
+	    (* TODO check if move was already played *)
+	    
+	    idP <- nextval positionSeq;
+	    
+	    row <- oneRow (SELECT post.CurrentPositionId, position.Fen
+			   FROM post JOIN position ON post.CurrentPositionId = position.Id
+			   WHERE post.Id = {[id]} );
+	    
+	    let
+		val state = fen_to_state row.Position.Fen
+		val move = {Src=src, Dest=dest, Prom = kind}
+	    in		     
+		case (doMove state move) of
+	       | None => return ()
+	       | Some manipulated =>
+		 let			     
+		     val newFen = state_to_fen manipulated
+		     val newMove = moveStr move
+		     val newMoveAlg = moveToAlgebraicClean state move manipulated
+		 in			 
+		     dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});
+		     dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId)
+			  VALUES ({[idP]}, {[id]}, {[newFen]}, {[Some newMove]}, {[Some newMoveAlg]},
+			      {[Some row.Post.CurrentPositionId]}) );
+		     
+		     room <- getRoom id;
+		     
+		     Room.send room (Position {State = (fen_to_state newFen), Id = idP, Highlight = []})
+		 end
+	    end
+	  | SBack =>		
+	    row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
+	    row2 <- oneRow (SELECT position.Id, position.Fen
+			    FROM position
+			    WHERE position.PostId = {[id]} AND position.Id < {[row.Post.CurrentPositionId]}
+			    ORDER BY position.Id DESC LIMIT 1);
+	    let
+		val idP = row2.Position.Id
+	    in
+		dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
+		room <- getRoom id;
+		Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
+	    end
+	  | SForward =>		
+	    row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
+	    row2 <- oneRow (SELECT position.Id, position.Fen
+			    FROM position
+			    WHERE position.PostId = {[id]} AND position.Id > {[row.Post.CurrentPositionId]}
+			    ORDER BY position.Id ASC LIMIT 1);
+	    let
+		val idP = row2.Position.Id
+	    in
+		dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
+		room <- getRoom id;
+		Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
+	    end
+	  | SPosition idP =>
+	    row2 <- oneRow (SELECT position.Id, position.Fen
+			    FROM position
+			    WHERE position.PostId = {[id]} AND position.Id = {[idP]});
+	    
 	    dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
 	    room <- getRoom id;
 	    Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
-	end
-      | SForward =>		
-	row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
-	row2 <- oneRow (SELECT position.Id, position.Fen
-			FROM position
-			WHERE position.PostId = {[id]} AND position.Id > {[row.Post.CurrentPositionId]}
-			ORDER BY position.Id ASC LIMIT 1);
-	let
-	    val idP = row2.Position.Id
-	in
-	    dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
+	    
+	  | SHighlight sq =>
 	    room <- getRoom id;
-	    Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
-	end
-      | SPosition idP =>
-	row2 <- oneRow (SELECT position.Id, position.Fen
-			FROM position
-			WHERE position.PostId = {[id]} AND position.Id = {[idP]});
-	
-	dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
-	room <- getRoom id;
-	Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
-	
-      | SHighlight sq =>
-	room <- getRoom id;
-	Room.send room (Highlight sq)
-      | SComment txt =>
-	idC <- nextval commentSeq;
-	dml (INSERT INTO comment (Id, PositionId, Content) VALUES({[idC]}, {[id]}, {[txt]} ));
-	room <- getRoom id;
-	Room.send room (Comment txt)
-      | SNewPost (optP, txt) =>
-	addPostF optP txt;
-	return ()
+	    Room.send room (Highlight sq)
+	  | SComment txt =>
+	    idC <- nextval commentSeq;
+	    t <- now;
+	    dml (INSERT INTO comment (Id, PositionId, Content, UserId, Sent) VALUES({[idC]}, {[id]}, {[txt]}, {[userId]}, {[t]} ));
+	    room <- getRoom id;
+	    Room.send room (Comment txt)
+	  | SNewPost (optP, txt) =>
+	    addPostF userId optP txt;
+	    return ()
+	  | SChangeName (id, txt) =>
+	    dml (UPDATE post SET Nam = {[txt]} WHERE Id = {[id]});
+	    room <- getRoom id;
+	    Room.send room (ChangeName txt)
 
 fun getTree id =
     tree4 id
@@ -301,25 +310,33 @@ fun getComments (id : int) : transaction (list string) =
 fun doSpeak id line =	 
     rpc (speak id line)
 
-fun renderPostTree (id : int) : transaction xbody =
+fun renderPostTree (id : int) (recTree : bool) : transaction xbody =
     let
+	fun clean () =
+	    return <xml></xml>
+	    
         fun recurse (root : option int) =
-            queryX' (SELECT * FROM post WHERE {eqNullable' (SQL post.ParentPostId) root})
-                    (fn r =>
-                        children <- recurse (Some r.Post.Id);
+            queryX' (SELECT * FROM post WHERE {eqNullable' (SQL post.ParentPostId) root} ORDER BY post.Id)
+                    (fn r =>			
+                        children <- (if recTree then
+					 clean ()
+				     else
+					 recurse (Some r.Post.Id));
                         return <xml>
-                          <li>			    
-			    <form>
-			      <submit action={postPage2 r.Post.Id} value={r.Post.Nam} />
-			    </form>
-			  </li>
-                          
-                          <ul>
-                            {children}
-                          </ul>
+                          <tr><td><a link={postPage2 r.Post.Id ()}>{[show r.Post.Nam]}</a></td></tr>
+
+                          {children}
                         </xml>)
     in
-        recurse (Some id)
+	content <- recurse (Some id);
+	return <xml>
+	  <div class="table-responsive">
+	    <table class="bs-table table-striped table-sm">
+	      <tr><th>Chapter</th></tr>
+              { content }
+	    </table>
+	  </div>
+	</xml>
     end
 
 and postPage2 id () =
@@ -328,37 +345,39 @@ and postPage2 id () =
 			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
 			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
 		       WHERE post.Id = {[id]});
-(*    postTree <- renderPostTree id; *)
+    postTree <- renderPostTree id False;
     cid <- fresh;
     ch <- Room.subscribe current.Post.Room;
+    pname <- source current.Post.Nam;
+    
     (boardy, pgnviewer, commentviewer) <- generate_board current.Position.Fen cid 60 True
 							 (fn _ => getTree current.Post.Id)
 							 (fn _ => getComments current.Post.Id )
-							 (fn s => doSpeak current.Post.Id s) ch;
+							 (fn s => doSpeak current.Post.Id s)
+							 (fn c => case c of
+								      ChangeName t => set pname t
+								    | _ => return ()) ch;
     commenttxt <- source "";
     newpostname <- source "";
 
     genPageU <xml>
 	<div class={container}>
-	  post # {[id]}
-	  
+	  <div class={row}>
+	    <ctextbox source={pname} />
+	    <button value="Send" onclick={fn _ =>
+					     txt <- get pname;
+					     doSpeak id (SChangeName(id, txt))} />
+	    </div>
 	  <div class={row}>
 	    
 	    <div class={col_sm_2}>
-
+		
 	      <button value="Back" onclick={fn _ => doSpeak id SBack } />
 		<button value="Fw" onclick={fn _ => doSpeak id SForward } />
 		  <a link={downloadPost id}>download</a>
-(*
+
 		  { postTree }
 
-		  <div>
-		    <ctextbox source={newpostname} />
-		    <button value="New Empty Post" onclick={fn _ =>
-							       nam <- get newpostname;
-							       doSpeak id (SNewPost (Some id, nam));
-							       set newpostname "" } />
-		  </div> *)
 	    </div>
 	    <div class={col_sm_6}>
 	      {boardy}
@@ -1272,47 +1291,53 @@ and myPosts () =
       </body>
     </xml>
 		   
-and allPosts () =  
-    rows <- query (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
+and allPosts () =
+    muserId <- currUserId ();
+    case muserId of
+	None => return (error <xml>not authenticated</xml>)
+      | Some userId => 
+	rows <- query (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
 		       FROM post
 			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
 			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
-		       WHERE {eqNullable' (SQL post.ParentPostId) None})
-		
-		  (fn data acc =>		      
-		      cid <- fresh;
-		      ch <- Room.subscribe data.Post.Room;
-		      (board, _, _) <- generate_board data.Position.Fen cid 20 False
-						      (fn _ => getTree data.Post.Id)
-						      (fn _ => return [])
-						      (fn s => doSpeak data.Post.Id s) ch;
-		      return <xml>{acc}<tr>
-			<td>{[data.Post.Nam]}</td>
-			<td>{board}</td>
-			<td>
-			  (*
-		       <form>
-			 <submit action={postPage data.Post.Id} value="Enter"/>
-		       </form>*)
-		       <form>
-			 (*<submit class="btn btn-success" action={postPage2 data.Post.Id} value="Enter Room"/> *)
-			 <a class="btn btn-success" link={postPage2 data.Post.Id ()}>Enter Room</a>
-		       </form>
-		     </td>
-		      </tr>
-		      </xml>)
-		  <xml></xml>;
-		  
-		  genPageU <xml>
-		    <h3>Posts</h3>
-		    <a class="btn btn-primary" link={createPost ()}>Create</a>
-		    <div class="table-responsive">
-		      <table class="bs-table table-striped table-sm">
-			<tr><th>Name</th><th>Board</th><th>Actions</th></tr>
-			{rows}
-		      </table>
-		    </div>
-		  </xml>
+		       WHERE {eqNullable' (SQL post.ParentPostId) None} AND post.UserId = {[userId]})
+		      
+		      (fn data acc =>		      
+			  cid <- fresh;
+			  ch <- Room.subscribe data.Post.Room;
+			  (board, _, _) <- generate_board data.Position.Fen cid 20 False
+							  (fn _ => getTree data.Post.Id)
+							  (fn _ => return [])
+							  (fn s => doSpeak data.Post.Id s)
+							  emptyTopLevelHandler
+							  ch;
+			  return <xml>{acc}<tr>
+			    <td>{[data.Post.Nam]}</td>
+			    <td>{board}</td>
+			    <td>
+			    (*
+			    <form>
+			     <submit action={postPage data.Post.Id} value="Enter"/>
+										 </form>*)
+			    <form>
+			    (*<submit class="btn btn-success" action={postPage2 data.Post.Id} value="Enter Room"/> *)
+			    <a class="btn btn-success" link={postPage2 data.Post.Id ()}>Enter Room</a>
+			    </form>
+			    </td>
+			  </tr>
+			  </xml>)
+		      <xml></xml>;
+		      
+		      genPageU <xml>
+			<h3>Posts</h3>
+			<a class="btn btn-primary" link={createPost ()}>Create</a>
+			<div class="table-responsive">
+			  <table class="bs-table table-striped table-sm">
+			    <tr><th>Name</th><th>Board</th><th>Actions</th></tr>
+			    {rows}
+			  </table>
+			</div>
+		      </xml>
  
 and createPost () =
     inPgn <- fresh;
@@ -1383,25 +1408,58 @@ and addPost newPost =
 												    {[None]}, {[None]}, {[None]} ));
 		importChildren id idP fen children
 		
-	fun insertPost tree =
+	fun insertPost nam idUser parent tree =
 	    id <- nextval postSeq;    
 	    idP <- nextval positionSeq;
 	    sharedboard <- Room.create;
     
-	    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId)
-		 VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[None]}));
+	    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId)
+		 VALUES ({[id]}, {[nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[parent]}, {[idUser]}));
 	    
 	    importTree id idP tree;
 	    return id
+
+	fun insertPosts idUser ls =
+	    case ls of
+		[] => insertPost newPost.Nam idUser None (Root (0, startingFen, []))
+	      | h :: [] => insertPost newPost.Nam idUser None h
+	      | h :: t =>
+		(* insert base post. *)
+		id <- nextval postSeq;    
+		idP <- nextval positionSeq;
+		sharedboard <- Room.create;
+		
+		dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId)
+		     VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[None]}, {[idUser]}));
+
+		dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]},
+												    {[None]}, {[None]}, {[None]} ));
+		
+		_ <- List.mapM (fn e => insertPost "..." idUser (Some id) e) ls;
+		
+		return id
+		
+			   
     
     in
-    
-	if blobSize (fileData newPost.Fil) > 10000 then
-	    return (error <xml>too big</xml>)
-	else	
-	    id <- insertPost (pgnToGame newPost.Pgn);	    
-	    redirect (url (postPage2 id ()))
-	end
+	mIdUser <- currUserId ();
+	case mIdUser of
+	    None => return (error <xml>not authenticated</xml>)
+	  | Some idUser =>
+	    let
+		val szF = blobSize (fileData newPost.Fil)
+	    in
+		if szF > 1000000 then
+		    return (error <xml>too big</xml>)
+		else
+		    if szF > 0 then
+			id <- insertPosts idUser (pgnsToGames (Filetext_FFI.blobAsText (fileData newPost.Fil)));	    
+			redirect (url (postPage2 id ()))
+		    else		    
+			id <- insertPosts idUser (pgnsToGames newPost.Pgn);	    
+			redirect (url (postPage2 id ()))
+	    end
+    end
 
 and genPageU content =
     u' <- currUser ();

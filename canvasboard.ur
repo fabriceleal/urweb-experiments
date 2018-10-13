@@ -10,7 +10,8 @@ datatype boardmsg =
 	 Highlight of square
        | Position of position
        | Comment of string
-		     
+       | ChangeName of string
+
 type renderCtx = { BK : img, BQ : img, BR : img, BB : img, BN : img, BP : img,
 		   WK : img, WQ : img, WR : img, WB : img, WN : img, WP : img,
 		   C2D: canvas2d }
@@ -31,7 +32,9 @@ datatype serverboardmsg =
        | SForward
        | SPosition of int
        | SComment of string
-       | SNewPost of option int * string		      
+       | SNewPost of option int * string
+       | SChangeName of int * string
+
 fun state_to_board state =
     { Highlight = [], Full = state, Pieces=state.Pieces, DragPiece = None, Prom = None}
 	
@@ -44,9 +47,12 @@ fun fen_to_board fen =
     
 (*
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
-*)
-		  
-fun generate_board testFen c size editable getTree getComments doSpeak ch =
+ *)
+
+fun emptyTopLevelHandler (msg : boardmsg) =
+    return ()
+	  
+fun generate_board testFen c size editable getTree getComments doSpeak topLevelHandler ch =
     rctx <- source None;
     tree <- getTree ();
     pgnstate <- source tree;
@@ -488,6 +494,8 @@ fun generate_board testFen c size editable getTree getComments doSpeak ch =
 			      set pgnstate x;
 			      return () 
 			    | None => return ())
+		      | _ =>
+			topLevelHandler s
 			
 		and listener () =
 		    s <- recv ch;
