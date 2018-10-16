@@ -135,10 +135,10 @@ fun tree3 (root : option int) parentFen =
     in
 	case root of
 	    None =>
-	    return (Root (0, "", []))
+	    return (Root (0, "", [], []))
 	  | Some root' => 
 	    ch <- recurse root parentFen;
-	    return (Root (root', parentFen, ch))
+	    return (Root (root', parentFen, ch, []))
     end
 	(**)
 
@@ -189,7 +189,7 @@ fun addPostF idUser idPostParent txt =
 	    
 	fun importTree id idP root =
 	    case root of
-		Root (_, fen, children) => 
+		Root (_, fen, children, hdrs) => 
 		dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[fen]},
 												    {[None]}, {[None]}, {[None]} ));
 		importChildren id idP fen children
@@ -204,7 +204,7 @@ fun addPostF idUser idPostParent txt =
 	    
 	    importTree id idP tree
 
-	val tree = Root (0, startingFen, [])
+	val tree = Root (0, startingFen, [], [])
     in
 	insertPost tree
     end
@@ -868,9 +868,9 @@ and downloadPost id =
 		
 	and  renderPgn pgn =
 	     case pgn of
-		 Root (_, _, []) =>
+		 Root (_, _, [], _) =>
 		 "*"
-	       | Root (_, _, (a :: siblings)) => 
+	       | Root (_, _, (a :: siblings), _) => 
 		 renderPgnN a siblings False
     in
 	tree <- tree4 id;
@@ -1403,7 +1403,7 @@ and addPost newPost =
 	    
 	fun importTree id idP root =
 	    case root of
-		Root (_, fen, children) => 
+		Root (_, fen, children, _) => 
 		dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[fen]},
 												    {[None]}, {[None]}, {[None]} ));
 		importChildren id idP fen children
@@ -1419,9 +1419,14 @@ and addPost newPost =
 	    importTree id idP tree;
 	    return id
 
+	fun getTitle tree =
+	    case tree of
+		Root (_, _, _, hdrs) =>
+		((getH hdrs "White") ^ " vs " ^ (getH hdrs "Black"))
+
 	fun insertPosts idUser ls =
 	    case ls of
-		[] => insertPost newPost.Nam idUser None (Root (0, startingFen, []))
+		[] => insertPost newPost.Nam idUser None (Root (0, startingFen, [], []))
 	      | h :: [] => insertPost newPost.Nam idUser None h
 	      | h :: t =>
 		(* insert base post. *)
@@ -1435,7 +1440,7 @@ and addPost newPost =
 		dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]},
 												    {[None]}, {[None]}, {[None]} ));
 		
-		_ <- List.mapM (fn e => insertPost "..." idUser (Some id) e) ls;
+		_ <- List.mapM (fn e => insertPost (getTitle e) idUser (Some id) e) ls;
 		
 		return id
 		

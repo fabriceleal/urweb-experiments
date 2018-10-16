@@ -1,9 +1,13 @@
 
+type lsHeaders = list (string * string)
+		 
 datatype pgnTree =
 	 Node of int * string * string * string * list pgnTree
 	 
 datatype pgnRoot =
-	 Root of int * string * list pgnTree
+	 Root of int * string * list pgnTree * lsHeaders
+
+val getH : lsHeaders -> string -> string
 
 val show_pgn_tree : show pgnTree
 

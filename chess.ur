@@ -1,9 +1,22 @@
 
+type lsHeaders = list (string * string)
+
 datatype pgnTree =
 	 Node of int * string * string * string * list pgnTree
 	 
 datatype pgnRoot =
-	 Root of int * string * list pgnTree
+	 Root of int * string * list pgnTree * lsHeaders
+
+fun getH hdrs k =
+    case hdrs of
+	[] => ""
+      | h :: t =>
+	case h of
+	    (k', v') =>
+	    if k' = k then
+		v'
+	    else
+		getH t k
 
 fun dbgTree node =
     case node of
@@ -14,7 +27,7 @@ val show_pgn_tree = mkShow dbgTree
 		 
 val show_pgn_root = mkShow (fn root =>
 			       case root of
-				   Root (_, fen, children) =>
+				   Root (_, fen, children, _) =>
 				   "Pgn(" ^ fen ^ ") = " ^ (List.foldr (fn n acc => (show n) ^ acc) "" children))
 
 datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |

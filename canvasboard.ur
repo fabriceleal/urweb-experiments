@@ -103,9 +103,9 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 		
 	and  renderPgn pgn =
 	     case pgn of
-		 Root (_, _, []) =>
+		 Root (_, _, [], _) =>
 		 return <xml> * </xml>
-	       | Root (_, _, (a :: siblings)) => 
+	       | Root (_, _, (a :: siblings), _) => 
 		 return <xml> {renderPgnN a siblings False} </xml>		
 		 
 	and renderComments comments =

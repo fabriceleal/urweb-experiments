@@ -4,7 +4,8 @@ open Chess
 
 type pgnGroup = string * pgnTag
 type lsGroups = list pgnGroup
-     
+type lsHeaders = list (string * string)
+
 fun containsHTags (g : list pgnGroup) : bool =
     case g of
 	[] => False
@@ -15,6 +16,8 @@ fun containsHTags (g : list pgnGroup) : bool =
 			     | HeaderValue => True
 			     | _ => containsHTags t))
 
+
+	
 fun bypassHeaders (ls : list lsGroups) : list lsGroups =
     case ls of
 	[] => []
@@ -23,6 +26,46 @@ fun bypassHeaders (ls : list lsGroups) : list lsGroups =
 	    bypassHeaders t
 	else
 	    ls
+
+
+fun readValueOfLine (l : lsGroups) : option string =
+    case l of
+	[] => None
+      | h :: _ =>
+	case h of
+	    (value,  tag) => (case tag of
+				  HeaderValue => Some value
+				| _ => None )
+	    
+fun readHeaderOfLine (l : lsGroups) : option (string * string) =
+    case l of
+	[] => None
+      | h :: t =>
+	(case h of
+	     (key, tag) => (case tag of				
+				HeaderKey =>
+				let
+				    val v = readValueOfLine t
+				in
+				    case v of
+					None => None
+				      | Some v' => Some (key, v')
+				end
+			      | _ => None))
+	
+fun readHeaders (ls : list lsGroups) : (list lsGroups) * lsHeaders =
+    case ls of
+	[] => ([], [])
+      | h :: t =>
+	case (readHeaderOfLine h) of
+	    None => (ls, [])
+	  | Some hdr =>
+	    let
+		val (ls', moreHdrs) = readHeaders t
+	    in
+		(ls', hdr :: moreHdrs)
+	    end
+
 
 fun test (pgn : string) : list pgnGroup =
     List.foldr List.append [] (bypassHeaders (decomposePgn pgn))
@@ -118,10 +161,11 @@ fun stringLToGame lines : pgnRoot =
 			| _ => None))
 		
 	val state = fen_to_state startingFen
-	val moves = List.foldr List.append [] (bypassHeaders decomposed)
+	val (rest, hdrs) = readHeaders decomposed
+	val moves = List.foldr List.append [] rest
     in	
-	(Root (0, state_to_fen state, (optToList (lsMovesToTree state moves))))
-    end    
+	(Root (0, state_to_fen state, (optToList (lsMovesToTree state moves)), hdrs))
+    end
 
 fun pgnsToStrs (pgn : string) : list (list string) =
 (* we will start splitting lines. after we're sure we stopped reading headers, we'll read lines until we reach more headers *)
