@@ -83,8 +83,7 @@ fun stringLToGame lines : pgnRoot =
 		     (case tag of
 			  PawnMove =>
 			  (case (pawnAlgebraicToMove state raw) of
-			       None =>
-			       None
+			       None => None
 			     | Some smove =>
 			       (case doMove state smove of
 				    None => None
@@ -98,8 +97,7 @@ fun stringLToGame lines : pgnRoot =
 				    end))
 			| Piece =>
 			  (case (pieceAlgebraicToMove state raw) of
-			       None =>
-			       None
+			       None => None
 			     | Some smove =>
 			       (case doMove state smove of
 				    None => None
@@ -113,8 +111,7 @@ fun stringLToGame lines : pgnRoot =
 				    end))
 			| LongCastle =>
 			  (case (castleAlgebraicToMove state raw) of
-			       None =>
-			       None
+			       None => None
 			     | Some smove =>
 			       (case doMove state smove of
 				    None => None
@@ -128,8 +125,7 @@ fun stringLToGame lines : pgnRoot =
 				    end))
 			| Castle =>
 			  (case (castleAlgebraicToMove state raw) of
-			       None =>
-			       None
+			       None => None
 			     | Some smove =>
 			       (case doMove state smove of
 				    None => None
@@ -143,8 +139,21 @@ fun stringLToGame lines : pgnRoot =
 				    end))
 			| PieceDesamb =>			  
 			  (case (pieceDesambAlgebraicToMove state raw) of
-			       None =>
-			       None
+			       None => None
+			     | Some smove =>
+			       (case doMove state smove of
+				    None => None
+				  | Some newState =>
+				    let
+					val newFen = state_to_fen newState
+					val newMove = moveStr smove
+					val newMoveAlg = moveToAlgebraicClean state smove newState
+				    in
+					Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
+				    end))
+			| Promotion =>
+			  (case (pawnAlgebraicToMove state raw) of
+			       None => None
 			     | Some smove =>
 			       (case doMove state smove of
 				    None => None
@@ -158,6 +167,9 @@ fun stringLToGame lines : pgnRoot =
 				    end))
 			| MoveNbr => lsMovesToTree state t
 			| Comment => lsMovesToTree state t
+			| StartVariation =>
+			  (* moves until variation *)
+			  None
 			| _ => None))
 		
 	val state = fen_to_state startingFen

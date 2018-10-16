@@ -251,6 +251,23 @@ fun char_to_piece c =
 		
       | _ => None
 
+fun char_to_kind c =
+    case c of
+	#"k" => Some King
+      | #"q" => Some Queen
+      | #"r" => Some Rook
+      | #"b" => Some Bishop
+      | #"n" => Some Knight
+      | #"p" => Some Pawn
+
+      | #"K" => Some King
+      | #"Q" => Some Queen
+      | #"R" => Some Rook
+      | #"B" => Some Bishop
+      | #"N" => Some Knight
+      | #"P" => Some Pawn
+		
+      | _ => None
 
 fun playerToFen c =
     case c of
@@ -1261,17 +1278,32 @@ fun pawnAlgebraicToMove (state : gamestate) (alg : string) =
 		       else
 			   file)
 	val rank = rankToI rawrank
-		   
+
+	val hasProm = (if rawRankOrCap = #"x" then (* dxe8=Q*)
+			   (strsub alg 4)
+		       else
+			   (strsub alg 2)) = #"=" (* d8=Q *)
+
+	val promPiece = if hasProm then
+			    char_to_kind (if rawRankOrCap = #"x" then (* dxe8=Q*)
+					     (strsub alg 5)
+					 else
+					     (strsub alg 3))
+			else
+			    None
+		      
 	val candidates = List.foldr List.append []
 				    (List.mp (legalsForPieceWithSrc state) (piecesAt3 state.Pieces Pawn state.Player (Some srcFile) None))
 	val possibles = List.filter (fn e => e.Dest.X = file && e.Dest.Y = rank) candidates
-		
-
+			
 	val len = List.length possibles
     in
 	if len > 0 then
 	    case possibles of
-		h :: t => Some h
+		h :: t =>
+		(case promPiece of
+		     None => Some h
+		   | Some k => Some {Dest=h.Dest, Src=h.Src, Prom=Some k})
 	      | _ => None
 	else
 	    None
