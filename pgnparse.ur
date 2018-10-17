@@ -179,54 +179,13 @@ fun stringLToGame lines : pgnRoot =
 	(Root (0, state_to_fen state, (optToList (lsMovesToTree state moves)), hdrs))
     end
 
-fun pgnsToStrs (pgn : string) : list (list string) =
-(* we will start splitting lines. after we're sure we stopped reading headers, we'll read lines until we reach more headers *)
-    let
-	fun splitUntilHeaders full =
-	    case (String.ssplit {Haystack=full, Needle= "\n"}) of
-		None =>
-		(full :: [], "")
-	      | Some (h, rest) =>
-		if (Nregex.startsWith h "[") then (* FIXME for some reason, a line may start with [ but it may be inside a comment *)
-		    ([], full)
-		else
-		    case (splitUntilHeaders rest) of
-			(ls, rest') => (h :: ls, rest')
-	    
-	and split full =
-	    case (String.ssplit {Haystack=full, Needle= "\n"}) of
-		None =>
-		(full :: [], "")
-	      | Some (h, rest) =>
-		if (Nregex.startsWith h "[") then (* FIXME for some reason, a line may start with [ but it may be inside a comment *)
-		    (case (split rest) of
-			 (ls, rest') => (h :: ls, rest'))
-		else 
-		    (case (splitUntilHeaders rest) of
-			 (ls, rest') => (h :: ls, rest'))
-	    
-	and splitGames (full : string) : list (list string) =
-	    case (split full) of
-		(linesGame, rest) =>
-		let
-		    val r = linesGame
-		in
-		    if (strlen rest) = 0 then
-			r :: []
-		    else
-			r :: (splitGames rest)
-		end		
-	    
-    in
-	splitGames pgn
-    end
 
 fun splitUntilHeaders full =
     case (String.ssplit {Haystack=full, Needle= "\n"}) of
 	None =>
 	(full :: [], "")
       | Some (h, rest) =>
-	if (Nregex.startsWith h "[Event") then
+	if (isHeader h) then
 	    ([], full)
 	else
 	    case (splitUntilHeaders rest) of
@@ -237,7 +196,7 @@ and split full =
 	None =>
 	(full :: [], "")
       | Some (h, rest) =>
-	if (Nregex.startsWith h "[") then
+	if (isHeader h) then
 	    (case (split rest) of
 		 (ls, rest') => (h :: ls, rest'))
 	else 
@@ -251,11 +210,23 @@ and splitGames full =
 	    val r = stringLToGame linesGame
 	in
 	    if (strlen rest) = 0 then
-		[]
+		r :: []
 	    else
 		r :: (splitGames rest)
 	end	
-    
+
+and pgnsToStrs full =
+    case (split full) of
+	(linesGame, rest) =>
+	let
+	    val r = linesGame
+	in
+	    if (strlen rest) = 0 then
+		r :: []
+	    else
+		r :: (pgnsToStrs rest)
+	end
+	
 fun pgnsToGames (pgn : string) : list pgnRoot =
 (* we will start splitting lines. after we're sure we stopped reading headers, we'll read lines until we reach more headers *)
     splitGames pgn

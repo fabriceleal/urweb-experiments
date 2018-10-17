@@ -1280,9 +1280,15 @@ fun pawnAlgebraicToMove (state : gamestate) (alg : string) =
 	val rank = rankToI rawrank
 
 	val hasProm = (if rawRankOrCap = #"x" then (* dxe8=Q*)
-			   (strsub alg 4)
+			   (if (strlen alg) > 4 then
+				(strsub alg 4)
+			    else
+				#" ")
 		       else
-			   (strsub alg 2)) = #"=" (* d8=Q *)
+			   (if (strlen alg) > 2 then
+				(strsub alg 2)
+			    else
+				#" ")) = #"=" (* d8=Q *)
 
 	val promPiece = if hasProm then
 			    char_to_kind (if rawRankOrCap = #"x" then (* dxe8=Q*)

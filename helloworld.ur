@@ -1129,6 +1129,47 @@ and handleTestUpload r =
       <body>
 	content
 	{[Filetext_FFI.blobAsText (fileData r.Fil)]}
+	<br />
+	(*
+	split:
+	<br />
+	{(case (split (Filetext_FFI.blobAsText (fileData r.Fil))) of
+	      (a, b) =>
+	      <xml>
+		{List.foldr (fn i acc => <xml>ST {[i]} END<br /> {acc}</xml>) <xml></xml> a }
+		<br />
+		Rest
+		<br />
+		ST {[b]} END
+		<br />
+
+	      </xml>
+	)}
+	<br />
+	 *)
+
+	
+	split2:
+	<br />
+	{
+	 let
+	     val a = pgnsToStrs (Filetext_FFI.blobAsText (fileData r.Fil))
+	 in
+	      <xml>
+		{List.foldr
+		     (fn i acc =>
+			 <xml>ELEM ST {
+			 List.foldr
+			     (fn i acc => <xml>ST {[i]} END<br /> {acc}</xml>)
+			     <xml></xml> i }
+		       ELEM END<br /> {acc}</xml>)
+		     <xml></xml> a }		
+	      </xml>
+	 end
+	}
+	<br />
+	 
+
 (*
 	<br />
 	test1
@@ -1458,9 +1499,14 @@ and addPost newPost =
 		    return (error <xml>too big</xml>)
 		else
 		    if szF > 0 then
+			debug "file";
 			id <- insertPosts idUser (pgnsToGames (Filetext_FFI.blobAsText (fileData newPost.Fil)));	    
 			redirect (url (postPage2 id ()))
-		    else		    
+		    else
+			debug "raw text";
+			debug (case (split newPost.Pgn) of
+				   (a, b) => "ls: " ^ (show a) ^ "rest: " ^ b);
+(*			debug (show (pgnsToGames newPost.Pgn));*)
 			id <- insertPosts idUser (pgnsToGames newPost.Pgn);	    
 			redirect (url (postPage2 id ()))
 	    end
