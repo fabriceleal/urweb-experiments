@@ -33,6 +33,7 @@ file /exp.css rsrc/css/exp.css
 rewrite style Canvasboard/* [-]
 rewrite style Helloworld/* [-]
 file /bootstrap.min.css rsrc/css/bootstrap.min.css
+minHeap 5120000
 
 $/string
 $/list

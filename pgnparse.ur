@@ -66,119 +66,180 @@ fun readHeaders (ls : list lsGroups) : (list lsGroups) * lsHeaders =
 		(ls', hdr :: moreHdrs)
 	    end
 
-
 fun test (pgn : string) : list pgnGroup =
     List.foldr List.append [] (bypassHeaders (decomposePgn pgn))
+	
+fun splitVariation (ls: list pgnGroup) (acc : list (string * pgnTag)) : (list (string * pgnTag)) * (list pgnGroup) =
+    case ls of
+	[] => ([], []) (* shouldnt happen *)
+      | h :: t =>
+	(case h of
+	     (raw, tag) =>
+	     (case tag of 
+		  StartVariation =>
+		  let
+		      val (innerElems, innerSeq) = splitVariation ls []
+		      val (outerElems, outerSeq) = splitVariation innerSeq acc   
+		  in
+		      (outerElems, outerSeq)
+		  end
+		| EndVariation =>
+		  (acc, t) (* FIXME we can have several variations in succession *)
+		| _ =>
+		  splitVariation t (h :: acc))
+	)
+	
+fun lsHandleVariations (state : gamestate) (ls: list pgnGroup) : (list pgnGroup) * (list pgnTree) =
+    (* 
+     this should handle variations. bail out if next token is not the start of a variation.
+     *)
+    case ls of 
+	[] => ([], [])
+      | h :: t =>   
+	case h of
+	    (raw, tag) =>
+	    (case tag of
+		 StartVariation => (* TODO keep handling variations until we hit a non startVariation token *)
+		 let
+		     val (elems, ls') = splitVariation ls []
+		 in
+		     (ls', [])
+		 end
+	       | _ =>
+		 (ls, []))
+    
+fun lsHandleNode (state : gamestate) (ls: list pgnGroup) : (list pgnGroup) * (list pgnTree) =
+(* 
+this should handle a node and its variations. 
+this should return a move and its brothers. Then for each element, we'll 
+call lsHandleNode with the new state and the current list
+*)
+    case ls of
+	[] => ([], [])
+      | h :: t =>
+	(* at this point we should expect a main line token. this means everything except start / end variation *)
+	([], [])
+
+
+fun lsHandleNodeTop (state: gamestate) (ls: list pgnGroup) : list pgnTree =
+    let
+	val (_, r) = lsHandleNode state ls
+    in
+	r
+    end
+	    
+fun lsMovesToTree (state : gamestate) (ls : list pgnGroup) : option pgnTree =
+    case ls of
+	[] => None
+      | h :: t =>
+	(case h of
+	     (raw, tag) =>
+	     (case tag of
+		  PawnMove =>
+		  (case (pawnAlgebraicToMove state raw) of
+		       None => None
+		     | Some smove =>
+		       (case doMove state smove of
+			    None => None
+			  | Some newState =>
+			    let
+				val newFen = state_to_fen newState
+				val newMove = moveStr smove
+				val newMoveAlg = moveToAlgebraicClean state smove newState
+			    in
+				Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
+			    end))
+		| Piece =>
+		  (case (pieceAlgebraicToMove state raw) of
+		       None => None
+		     | Some smove =>
+		       (case doMove state smove of
+			    None => None
+			  | Some newState =>
+			    let
+				val newFen = state_to_fen newState
+				val newMove = moveStr smove
+				val newMoveAlg = moveToAlgebraicClean state smove newState
+			    in
+				Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
+			    end))
+		| LongCastle =>
+		  (case (castleAlgebraicToMove state raw) of
+		       None => None
+		     | Some smove =>
+		       (case doMove state smove of
+			    None => None
+			  | Some newState =>
+			    let
+				val newFen = state_to_fen newState
+				val newMove = moveStr smove
+				val newMoveAlg = moveToAlgebraicClean state smove newState
+			    in
+				Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
+			    end))
+		| Castle =>
+		  (case (castleAlgebraicToMove state raw) of
+		       None => None
+		     | Some smove =>
+		       (case doMove state smove of
+			    None => None
+			  | Some newState =>
+			    let
+				val newFen = state_to_fen newState
+				val newMove = moveStr smove
+				val newMoveAlg = moveToAlgebraicClean state smove newState
+			    in
+				Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
+			    end))
+		| PieceDesamb =>			  
+		  (case (pieceDesambAlgebraicToMove state raw) of
+		       None => None
+		     | Some smove =>
+		       (case doMove state smove of
+			    None => None
+			  | Some newState =>
+			    let
+				val newFen = state_to_fen newState
+				val newMove = moveStr smove
+				val newMoveAlg = moveToAlgebraicClean state smove newState
+			    in
+				Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
+			    end))
+		| Promotion =>
+		  (case (pawnAlgebraicToMove state raw) of
+		       None => None
+		     | Some smove =>
+		       (case doMove state smove of
+			    None => None
+			  | Some newState =>
+			    let
+				val newFen = state_to_fen newState
+				val newMove = moveStr smove
+				val newMoveAlg = moveToAlgebraicClean state smove newState
+			    in
+				Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
+			    end))
+		| MoveNbr => lsMovesToTree state t
+		| Comment => lsMovesToTree state t
+		| StartVariation =>
+		  (* moves until end variation *)
+		  None
+		| EndVariation => None
+		| Result => None
+		| HeaderKey => None
+		| HeaderValue => None
+	))
+
 
 fun stringLToGame lines : pgnRoot =
     let
 	val decomposed = decomposePgnL lines
-				  
-	fun lsMovesToTree state (ls : list pgnGroup) : option pgnTree =
-	    case ls of
-		[] => None
-	      | h :: t =>
-		(case h of
-		     (raw, tag) =>
-		     (case tag of
-			  PawnMove =>
-			  (case (pawnAlgebraicToMove state raw) of
-			       None => None
-			     | Some smove =>
-			       (case doMove state smove of
-				    None => None
-				  | Some newState =>
-				    let
-					val newFen = state_to_fen newState
-					val newMove = moveStr smove
-					val newMoveAlg = moveToAlgebraicClean state smove newState
-				    in
-					Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
-				    end))
-			| Piece =>
-			  (case (pieceAlgebraicToMove state raw) of
-			       None => None
-			     | Some smove =>
-			       (case doMove state smove of
-				    None => None
-				  | Some newState =>
-				    let
-					val newFen = state_to_fen newState
-					val newMove = moveStr smove
-					val newMoveAlg = moveToAlgebraicClean state smove newState
-				    in
-					Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
-				    end))
-			| LongCastle =>
-			  (case (castleAlgebraicToMove state raw) of
-			       None => None
-			     | Some smove =>
-			       (case doMove state smove of
-				    None => None
-				  | Some newState =>
-				    let
-					val newFen = state_to_fen newState
-					val newMove = moveStr smove
-					val newMoveAlg = moveToAlgebraicClean state smove newState
-				    in
-					Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
-				    end))
-			| Castle =>
-			  (case (castleAlgebraicToMove state raw) of
-			       None => None
-			     | Some smove =>
-			       (case doMove state smove of
-				    None => None
-				  | Some newState =>
-				    let
-					val newFen = state_to_fen newState
-					val newMove = moveStr smove
-					val newMoveAlg = moveToAlgebraicClean state smove newState
-				    in
-					Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
-				    end))
-			| PieceDesamb =>			  
-			  (case (pieceDesambAlgebraicToMove state raw) of
-			       None => None
-			     | Some smove =>
-			       (case doMove state smove of
-				    None => None
-				  | Some newState =>
-				    let
-					val newFen = state_to_fen newState
-					val newMove = moveStr smove
-					val newMoveAlg = moveToAlgebraicClean state smove newState
-				    in
-					Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
-				    end))
-			| Promotion =>
-			  (case (pawnAlgebraicToMove state raw) of
-			       None => None
-			     | Some smove =>
-			       (case doMove state smove of
-				    None => None
-				  | Some newState =>
-				    let
-					val newFen = state_to_fen newState
-					val newMove = moveStr smove
-					val newMoveAlg = moveToAlgebraicClean state smove newState
-				    in
-					Some (Node (0, newFen, newMove, newMoveAlg, (optToList (lsMovesToTree newState t))))
-				    end))
-			| MoveNbr => lsMovesToTree state t
-			| Comment => lsMovesToTree state t
-			| StartVariation =>
-			  (* moves until variation *)
-			  None
-			| _ => None))
-		
 	val state = fen_to_state startingFen
 	val (rest, hdrs) = readHeaders decomposed
 	val moves = List.foldr List.append [] rest
     in	
-	(Root (0, state_to_fen state, (optToList (lsMovesToTree state moves)), hdrs))
+	(Root (0, state_to_fen state, optToList (lsMovesToTree state moves), hdrs))
     end
-
 
 fun splitUntilHeaders full =
     case (String.ssplit {Haystack=full, Needle= "\n"}) of

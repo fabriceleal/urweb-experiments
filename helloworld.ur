@@ -20,12 +20,17 @@ sequence inviteSeq
 
 type userId = int
 	      
-table post : { Id : int, Nam : string, RootPositionId: int, UserId: userId, CurrentPositionId : int, ParentPostId : option int, Room : Room.topic }
-		 PRIMARY KEY Id
+
 	     
 table position : {Id: int, PostId: int, Fen : string, Move: option string, MoveAlg: option string, PreviousPositionId: option int }
-		     PRIMARY KEY Id
-
+		     PRIMARY KEY Id (*,
+		     CONSTRAINT CPreviousPositionId FOREIGN KEY PreviousPositionId REFERENCES position (Id) ON DELETE CASCADE
+*)
+table post : { Id : int, Nam : string, RootPositionId: int, UserId: userId, CurrentPositionId : int, ParentPostId : option int, Room : Room.topic }
+		 PRIMARY KEY Id (*,
+		 CONSTRAINT CRootPositionId FOREIGN KEY RootPositionId REFERENCES position (Id) ON DELETE CASCADE,
+		 CONSTRAINT CCurrentPositionId FOREIGN KEY CurrentPositionId REFERENCES position (Id) ON DELETE CASCADE
+*)
 table comment : {Id: int, PositionId: int, Content: string, UserId: userId, Sent: time  }
 		    PRIMARY KEY Id
 
@@ -1341,7 +1346,8 @@ and allPosts () =
 		       FROM post
 			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
 			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
-		       WHERE {eqNullable' (SQL post.ParentPostId) None} AND post.UserId = {[userId]})
+		       WHERE {eqNullable' (SQL post.ParentPostId) None} AND post.UserId = {[userId]}
+		      LIMIT 10 OFFSET 0)
 		      
 		      (fn data acc =>		      
 			  cid <- fresh;
