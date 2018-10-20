@@ -2,7 +2,7 @@
 type lsHeaders = list (string * string)
 
 datatype pgnTree =
-	 Node of int * string * string * string * list pgnTree
+	 Node of int * string * string * string * (list string) * (list pgnTree)
 	 
 datatype pgnRoot =
 	 Root of int * string * list pgnTree * lsHeaders
@@ -20,7 +20,7 @@ fun getH hdrs k =
 
 fun dbgTree node =
     case node of
-	Node (_, _, _, alg, children) =>
+	Node (_, _, _, alg, _, children) =>
 	alg ^ " (" ^ (List.foldr (fn n acc => (dbgTree n) ^ acc) "" children) ^ ") "
 		 
 val show_pgn_tree = mkShow dbgTree

@@ -3,7 +3,8 @@ open Canvas_FFI
      
 style move_clickable
 style wrapping_span
-           
+style comments_span
+
 type position = { Id: int, State: gamestate, Highlight: list square }
 		
 datatype boardmsg =
@@ -79,7 +80,7 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 
 	fun renderPgnN pgnN siblings forceAlg =
 	    case pgnN of
-		Node (idP, fen, move, moveAlg, children) =>
+		Node (idP, fen, move, moveAlg, comments, children) =>
 		let
 		    val rest = case children of
 				   [] => <xml></xml>
@@ -95,6 +96,9 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 		    <xml>
 		      <span class="move_clickable wrapping_span" onclick={fn _ => doSpeak (SPosition idP)}>
 			{[(moveToAlgebraic (fen_to_state fen) (str_to_move move) moveAlg forceAlg)]}
+		      </span>
+		      <span class="comments_span">
+			{List.foldr (fn c acc => <xml>{[c]} {acc}</xml>) <xml></xml> comments}
 		      </span>
 		      {siblingsRender}
 		      {rest}

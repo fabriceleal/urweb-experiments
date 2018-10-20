@@ -5,3 +5,8 @@
 .move-clickable {
     cursor: pointer;
 }
+
+.comments-span {
+    color: green;
+}
+

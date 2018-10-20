@@ -34,3 +34,12 @@ val myPosts : unit -> transaction page
 
 val logoff : unit -> transaction page
 		     
+val clockSetup : unit -> transaction page
+
+type timecontrol =
+     {BaseTime : int, Increment: int}
+
+type lsTimecontrol = list timecontrol
+			 
+val clock : timecontrol -> transaction page
+	    

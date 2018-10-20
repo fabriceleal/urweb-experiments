@@ -1,0 +1,54 @@
+html {
+    height: 100%;
+    width: 100%;
+}
+
+.white-player {
+    color: black;
+    background-color: white;
+}
+
+.black-player {
+    color: white;
+    background-color: black;
+}
+
+.commands {
+    display: table-row;
+    height: 10%;
+    background-color: lightgray;
+    text-align: center;
+}
+
+.half {
+    display: table-row;
+    height: 45%;
+    text-align: center;
+}
+
+.content {
+    display: table-cell;
+    vertical-align: middle;
+    font-size: 80px;
+}
+
+.full {
+    display: table;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+.flip {
+    -webkit-transform: rotate(180deg);
+    -moz-transform: rotate(180deg);
+    -o-transform: rotate(180deg);
+    -ms-transform: rotate(180deg);
+    transform: rotate(180deg);
+}
+
+.cmd-button {
+    width: 33%;
+    float: left;
+}

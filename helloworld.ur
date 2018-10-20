@@ -5,27 +5,59 @@ open Bootstrap4
 open Pgnparse
 open Canvasboard
 open Nmarkdown
-
+     
+(* login page *)
 style form_signin
 style form_signin_sep
 
+(* clock page *)
+style white_player
+style black_player
+style half
+style full
+style content
+style commands
+style flip
+style cmd_button
+      
 structure Room = Sharedboard.Make(struct
 				      type t = boardmsg
 				  end)
 
+
+		 
 sequence postSeq
 sequence positionSeq
 sequence commentSeq
 sequence inviteSeq
 
 type userId = int
-	      
 
-	     
+
+datatype clockSide =
+	 CWhite
+       | CBlack
+
+fun otherC c =
+    case c of
+	CWhite => CBlack
+      | CBlack => CWhite
+
+fun eqC a b =
+    case (a, b) of
+	(CWhite, CWhite) => True
+      | (CBlack, CBlack) => True
+      | (_, _) => False
+		  
+type timecontrol =
+     {BaseTime : int, Increment: int}
+
+type lsTimecontrol = list timecontrol
+
 table position : {Id: int, PostId: int, Fen : string, Move: option string, MoveAlg: option string, PreviousPositionId: option int }
-		     PRIMARY KEY Id (*,
+		     PRIMARY KEY Id,
 		     CONSTRAINT CPreviousPositionId FOREIGN KEY PreviousPositionId REFERENCES position (Id) ON DELETE CASCADE
-*)
+
 table post : { Id : int, Nam : string, RootPositionId: int, UserId: userId, CurrentPositionId : int, ParentPostId : option int, Room : Room.topic }
 		 PRIMARY KEY Id (*,
 		 CONSTRAINT CRootPositionId FOREIGN KEY RootPositionId REFERENCES position (Id) ON DELETE CASCADE,
@@ -68,7 +100,7 @@ fun insertUserWithId userid nam passS =
 	val passraw = passS ^ saltEncoded
 	val pass = Hash.sha512 (textBlob passraw)
     in
-	debug ("saltEncoded:" ^ saltEncoded);
+(*	debug ("saltEncoded:" ^ saltEncoded);*)
 	dml (INSERT INTO user (Id, Nam, Pass, Salt) VALUES ({[userid]}, {[nam]}, {[pass]}, {[saltEncoded]}))
     end
       
@@ -122,6 +154,10 @@ val canvasW = size * 9 + offProm
 val canvasH = size * 8
 
 
+fun getComments (id : int) : transaction (list string) =
+    List.mapQuery (SELECT comment.Content FROM comment WHERE comment.PositionId = {[id]} ORDER BY comment.Id)
+		  (fn i => i.Comment.Content)
+    
 
 fun tree3 (root : option int) parentFen =
     let
@@ -133,9 +169,10 @@ fun tree3 (root : option int) parentFen =
 			      case (r.Position.Move, r.Position.MoveAlg) of
 				  (Some move, Some alg) =>
 				  ch <- recurse (Some r.Position.Id) r.Position.Fen;
-				  return (Node (r.Position.Id, fen, move, alg, ch))
+				  cs <- getComments r.Position.Id;
+				  return (Node (r.Position.Id, fen, move, alg, cs, ch))
 				| (_, _) =>
-				  return (Node (r.Position.Id, "", "", "", []))
+				  return (Node (r.Position.Id, "", "", "", [], []))
 			  )
     in
 	case root of
@@ -168,7 +205,7 @@ fun addPostF idUser idPostParent txt =
 		      | h :: t =>
 			
 			case h of
-			    Node (_, _, move, _, children2) =>
+			    Node (_, _, move, _, comments, children2) =>
 			    let
 				val rmove = str_to_move move
 			    in
@@ -308,10 +345,6 @@ fun speak id line =
 fun getTree id =
     tree4 id
 
-fun getComments (id : int) : transaction (list string) =
-    List.mapQuery (SELECT comment.Content FROM comment WHERE comment.PositionId = {[id]} ORDER BY comment.Id)
-		  (fn i => i.Comment.Content)
-    
 fun doSpeak id line =	 
     rpc (speak id line)
 
@@ -857,7 +890,7 @@ and downloadPost id =
     let
 	fun renderPgnN pgnN siblings forceAlg =
 	    case pgnN of
-		Node (idP, fen, move, moveAlg, children) =>
+		Node (idP, fen, move, moveAlg, comments, children) =>
 		let
 		    val rest = case children of
 				   [] => ""
@@ -1413,110 +1446,118 @@ and createPost () =
 
 
 and addPost newPost =
-    let
+    mIdUser <- currUserId ();
+    case mIdUser of
+	None => return (error <xml>not authenticated</xml>)
+      | Some idUser =>
+	let
+	    fun importComments nidP (comments : list string) =
+		case comments of
+		    [] => return ()
+		  | c :: t => 
+		    cid <- nextval commentSeq;
+		    n <- now;
+		    dml (INSERT INTO comment (Id, PositionId, Content, UserId, Sent) VALUES ({[cid]}, {[nidP]}, {[c]}, {[idUser]}, {[n]}));
+		    importComments nidP t
 
-	fun importChildren id idP fen children =
-	    let
-		val state = fen_to_state fen
-		fun importChildrenAux children =
-		    case children of
-			[] => return ()
-		      | h :: t =>
-			
-			case h of
-			    Node (_, _, move, _, children2) =>
-			    let
-				val rmove = str_to_move move
-			    in
-				case (doMove state rmove) of
-				    None => return ()
-				  | Some newState => 
-				    nidP <- nextval positionSeq;
-				    let					
-					val nfen = state_to_fen newState
-					val nmove = moveStr rmove
-					val alg = moveToAlgebraicClean state rmove newState
-				    in
-					dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId )
-					     VALUES ({[nidP]}, {[id]}, {[nfen]}, {[Some nmove]}, {[Some alg]}, {[Some idP]} ));
-					importChildren id nidP nfen children2;
-					importChildrenAux t
-				    end
-			    end
-		    
-	    in
-		importChildrenAux children
-	    end
-	    
-	fun importTree id idP root =
-	    case root of
-		Root (_, fen, children, _) => 
-		dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[fen]},
-												    {[None]}, {[None]}, {[None]} ));
-		importChildren id idP fen children
+	    fun importChildren id idP fen children =
+		let
+		    val state = fen_to_state fen
+		    fun importChildrenAux children =
+			case children of
+			    [] => return ()
+			  | h :: t =>
+			    
+			    case h of
+				Node (_, _, move, _, comments, children2) =>
+				let
+				    val rmove = str_to_move move
+				in
+				    case (doMove state rmove) of
+					None => return ()
+				      | Some newState => 
+					nidP <- nextval positionSeq;
+					let					
+					    val nfen = state_to_fen newState
+					    val nmove = moveStr rmove
+					    val alg = moveToAlgebraicClean state rmove newState
+					in
+					    dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId )
+						 VALUES ({[nidP]}, {[id]}, {[nfen]}, {[Some nmove]}, {[Some alg]}, {[Some idP]} ));
+
+					    importComments nidP comments;
+					    importChildren id nidP nfen children2;
+					    importChildrenAux t
+					end
+				end
+				
+		in
+		    importChildrenAux children
+		end
 		
-	fun insertPost nam idUser parent tree =
-	    id <- nextval postSeq;    
-	    idP <- nextval positionSeq;
-	    sharedboard <- Room.create;
-    
-	    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId)
-		 VALUES ({[id]}, {[nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[parent]}, {[idUser]}));
-	    
-	    importTree id idP tree;
-	    return id
-
-	fun getTitle tree =
-	    case tree of
-		Root (_, _, _, hdrs) =>
-		((getH hdrs "White") ^ " vs " ^ (getH hdrs "Black"))
-
-	fun insertPosts idUser ls =
-	    case ls of
-		[] => insertPost newPost.Nam idUser None (Root (0, startingFen, [], []))
-	      | h :: [] => insertPost newPost.Nam idUser None h
-	      | h :: t =>
-		(* insert base post. *)
+	    fun importTree id idP root =
+		case root of
+		    Root (_, fen, children, _) => 
+		    dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[fen]},
+													{[None]}, {[None]}, {[None]} ));
+		    importChildren id idP fen children
+		    
+	    fun insertPost nam idUser parent tree =
 		id <- nextval postSeq;    
 		idP <- nextval positionSeq;
 		sharedboard <- Room.create;
 		
 		dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId)
-		     VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[None]}, {[idUser]}));
-
-		dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]},
-												    {[None]}, {[None]}, {[None]} ));
+		     VALUES ({[id]}, {[nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[parent]}, {[idUser]}));
 		
-		_ <- List.mapM (fn e => insertPost (getTitle e) idUser (Some id) e) ls;
-		
+		importTree id idP tree;
 		return id
-		
-			   
-    
-    in
-	mIdUser <- currUserId ();
-	case mIdUser of
-	    None => return (error <xml>not authenticated</xml>)
-	  | Some idUser =>
-	    let
-		val szF = blobSize (fileData newPost.Fil)
-	    in
-		if szF > 1000000 then
-		    return (error <xml>too big</xml>)
+
+	    fun getTitle tree =
+		case tree of
+		    Root (_, _, _, hdrs) =>
+		    ((getH hdrs "White") ^ " vs " ^ (getH hdrs "Black"))
+
+	    fun insertPosts idUser ls =
+		case ls of
+		    [] => insertPost newPost.Nam idUser None (Root (0, startingFen, [], []))
+		  | h :: [] => insertPost newPost.Nam idUser None h
+		  | h :: t =>
+		    (* insert base post. *)
+		    id <- nextval postSeq;    
+		    idP <- nextval positionSeq;
+		    sharedboard <- Room.create;
+		    
+		    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId)
+			 VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[None]}, {[idUser]}));
+
+		    dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]},
+													{[None]}, {[None]}, {[None]} ));
+		    
+		    _ <- List.mapM (fn e => insertPost (getTitle e) idUser (Some id) e) ls;
+		    
+		    return id
+		    
+	    val szF = blobSize (fileData newPost.Fil)	   
+		      
+	in
+
+	    if szF > 1000000 then
+		return (error <xml>too big</xml>)
+	    else
+		if szF > 0 then
+(*		    debug "file"; *)
+		    id <- insertPosts idUser (pgnsToGames (Filetext_FFI.blobAsText (fileData newPost.Fil)));	    
+		    redirect (url (postPage2 id ()))
 		else
-		    if szF > 0 then
-			debug "file";
-			id <- insertPosts idUser (pgnsToGames (Filetext_FFI.blobAsText (fileData newPost.Fil)));	    
-			redirect (url (postPage2 id ()))
-		    else
-			debug "raw text";
-			debug (case (split newPost.Pgn) of
-				   (a, b) => "ls: " ^ (show a) ^ "rest: " ^ b);
-(*			debug (show (pgnsToGames newPost.Pgn));*)
-			id <- insertPosts idUser (pgnsToGames newPost.Pgn);	    
-			redirect (url (postPage2 id ()))
-	    end
-    end
+(*		    debug "raw text";
+		    debug (case (split newPost.Pgn) of
+			       (a, b) => "ls: " ^ (show a) ^ "rest: " ^ b); *)
+		    (*			debug (show (pgnsToGames newPost.Pgn));*)
+		    id <- insertPosts idUser (pgnsToGames newPost.Pgn);	    
+		    redirect (url (postPage2 id ()))
+
+	end
 
 and genPageU content =
     u' <- currUser ();
@@ -1659,5 +1700,151 @@ and testResponsive () =
 	</div>
       </body>
     </xml>
-(*
-						    *)
+
+and handleClock r =
+    let
+	fun validate r : option (int * int)=	    
+	    baseTime <- read r.BaseTime;
+	    increment <- read r.Increment;
+	    Some (baseTime, increment)
+    in
+	case (validate r) of
+	    None => error <xml>Invalid data</xml>
+	  | Some (bt, i) => redirect (url (clock {BaseTime =bt, Increment = i} )) (* :: [] *)
+    end
+    
+and clockSetup () =
+    return <xml>
+      <body>
+	<form>
+	  <textbox{#BaseTime} />
+	  <textbox{#Increment} />
+	  <submit action={handleClock} value="Clock" />
+	</form>
+      </body>
+    </xml>
+    
+and clock tc =
+    let
+	fun minToTiny m =
+	    m * 60
+
+	fun tinyToStr sec =
+	    let
+		val min = sec / 60
+		val secP = sec - (min * 60)
+	    in
+		(show min) ^ ":" ^ (if secP < 10 then "0" else "") ^ (show secP)
+	    end
+	    
+	fun renderT t =
+	    return <xml>
+	      {[tinyToStr t]}
+	    </xml>
+    in
+	wtime <- source (minToTiny tc.BaseTime);
+	btime <- source (minToTiny tc.BaseTime);
+(*	timecleft <- source ltc;
+	timeccurr <- source None; *)
+	turn <- source None;
+
+	let
+
+	    fun reset () =
+		set wtime (minToTiny tc.BaseTime);
+		set btime (minToTiny tc.BaseTime);
+(*		set timecleft ltc;
+		set timeccurr None; *)
+		set turn None
+	    
+	    fun tap (src : clockSide) =
+		let
+		    fun tapTail tc =
+			current <- get turn;
+			case current of
+			    None =>
+			    set turn (Some (otherC src))
+			  | Some c' =>
+			    if (eqC c' src) then
+				(case c' of
+				     CWhite =>
+				     w <- get wtime;
+				     set wtime (w + tc.Increment)			    
+				   | CBlack =>
+				     b <- get btime;
+				     set btime (b + tc.Increment));
+				set turn (Some (otherC src))
+			    else
+				return ()
+		in
+		    tapTail tc
+		   (* mtc <- get timecurr;
+		    case mtc of
+			None =>
+			left <- get timecleft;
+			(case left of
+			     [] =>
+			     set turn None;
+			     alert "end of time controls"
+			     
+			   | h :: t =>
+			     set timeccurr h;
+			     set timecleft t;
+			     tapTail h
+			)
+		      | Some tc => tapTail tc		*)
+		end 
+
+	    fun tickInner () =
+		current <- get turn;
+		case current of
+		    None => setTimeout tickInner 1000
+		  | Some c' =>		    
+		    case c' of
+			CWhite =>
+			w <- get wtime;
+			set wtime (w - 1);
+			setTimeout tickInner 1000
+		      | CBlack =>
+			b <- get btime;
+			set btime (b - 1);
+			setTimeout tickInner 1000			
+			
+	    fun tick () =
+		tickInner ();
+		return <xml></xml>
+		
+	in
+	    return <xml>
+	      <head>
+		<link rel="stylesheet" type="text/css" href="/clock.css" />
+	      </head>
+	      <body class="full">
+		<div class="half black-player flip">
+		  <div class="content" onclick={fn _ => tap CWhite}>
+		    <dyn signal={w <- signal wtime; renderT w}></dyn>
+		  </div>
+		</div>
+		<div class="commands">
+		  <div class="content">
+		    <div class="cmd-button">
+		      P
+		    </div>
+		    <div class="cmd-button" onclick={fn _ => reset ()}>
+		      R
+		    </div>
+		    <div class="cmd-button" onclick={fn _ => redirect (url (clockSetup ()))}>
+		      S
+		    </div>
+		  </div>
+		</div>
+		<div class="half white-player">
+		  <div class="content" onclick={fn _ => tap CBlack}>
+		    <dyn signal={b <- signal btime; renderT b}></dyn>
+		  </div>
+		</div>
+		<active code={tick ()}></active>
+	      </body>
+	    </xml>
+	end
+    end

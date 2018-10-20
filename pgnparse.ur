@@ -68,23 +68,55 @@ fun readHeaders (ls : list lsGroups) : (list lsGroups) * lsHeaders =
 
 fun test (pgn : string) : list pgnGroup =
     List.foldr List.append [] (bypassHeaders (decomposePgn pgn))
-	
-fun splitVariation (ls: list pgnGroup) (acc : list pgnGroup) : (list pgnGroup) * (list pgnGroup) =
+
+fun scanToEndVariation ls acc =
     case ls of
-	[] => ([], []) (* shouldnt happen *)
+	[] => (acc, []) (* shouldnt happen *)
+      | h :: t =>
+	case h of
+	    (raw, tag) =>
+	    case tag of
+		EndVariation => (h :: acc, t)
+	      | _ => scanToEndVariation t (h :: acc)
+
+and splitVariation (ls: list pgnGroup) (acc : list pgnGroup) : (list pgnGroup) * (list pgnGroup) =
+    case ls of
+	[] => (acc, []) (* shouldnt happen *)
       | h :: t =>
 	(case h of
 	     (raw, tag) =>
 	     (case tag of 
 		  StartVariation =>
-		  (acc, t) (* FIXME how to handle nested variations? we probably want to include them and 
-let the inner call handle those variations *)
+		(* nest variation. include StartVariation and EndVariation tags *)
+		  let
+		      val (result, rest) = scanToEndVariation ls []
+		  in
+		      splitVariation rest (List.append result acc)
+		  end
+		  
 		| EndVariation =>
 		  (acc, t)
 		| _ =>
 		  splitVariation t (h :: acc))
 	)
-	
+
+and handleComments (ls: list pgnGroup) : (list pgnGroup) * (list string) =
+    case ls of
+	[] => ([], [])
+      | h :: t =>
+	case h of
+	    (raw, tag) =>
+	    case tag of
+		Comment =>
+		let
+		    val (rest, comments) = handleComments t
+		in
+		    (rest, raw :: comments)
+		end
+	      | _ =>
+		(ls, [])
+		
+    
 and handleVariations (state : gamestate) (ls: list pgnGroup) : (list pgnGroup) * (list pgnTree) =
     (* 
      this should handle variations. bail out if next token is not the start of a variation.
@@ -123,9 +155,10 @@ and lsMovesToTree (state : gamestate) (ls : list pgnGroup) : list pgnTree =
 				val newFen = state_to_fen newState
 				val newMove = moveStr smove
 				val newMoveAlg = moveToAlgebraicClean state smove newState
-				val (t', brothers) = handleVariations state t
+				val (t', cs) = handleComments t
+				val (t'', brothers) = handleVariations state t'
 			    in
-				(Node (0, newFen, newMove, newMoveAlg, (lsMovesToTree newState t'))) :: brothers
+				(Node (0, newFen, newMove, newMoveAlg, cs, (lsMovesToTree newState t''))) :: brothers
 			    end))
 		| Piece =>
 		  (case (pieceAlgebraicToMove state raw) of
@@ -138,9 +171,10 @@ and lsMovesToTree (state : gamestate) (ls : list pgnGroup) : list pgnTree =
 				val newFen = state_to_fen newState
 				val newMove = moveStr smove
 				val newMoveAlg = moveToAlgebraicClean state smove newState
-				val (t', brothers) = handleVariations state t
+				val (t', cs) = handleComments t
+				val (t'', brothers) = handleVariations state t'
 			    in
-				(Node (0, newFen, newMove, newMoveAlg, (lsMovesToTree newState t'))) :: brothers
+				(Node (0, newFen, newMove, newMoveAlg, cs, (lsMovesToTree newState t''))) :: brothers
 			    end))
 		| LongCastle =>
 		  (case (castleAlgebraicToMove state raw) of
@@ -153,9 +187,10 @@ and lsMovesToTree (state : gamestate) (ls : list pgnGroup) : list pgnTree =
 				val newFen = state_to_fen newState
 				val newMove = moveStr smove
 				val newMoveAlg = moveToAlgebraicClean state smove newState
-				val (t', brothers) = handleVariations state t
+				val (t', cs) = handleComments t
+				val (t'', brothers) = handleVariations state t'
 			    in
-				(Node (0, newFen, newMove, newMoveAlg, (lsMovesToTree newState t'))) :: brothers
+				(Node (0, newFen, newMove, newMoveAlg, cs, (lsMovesToTree newState t''))) :: brothers
 			    end))
 		| Castle =>
 		  (case (castleAlgebraicToMove state raw) of
@@ -168,9 +203,10 @@ and lsMovesToTree (state : gamestate) (ls : list pgnGroup) : list pgnTree =
 				val newFen = state_to_fen newState
 				val newMove = moveStr smove
 				val newMoveAlg = moveToAlgebraicClean state smove newState
-				val (t', brothers) = handleVariations state t
+				val (t', cs) = handleComments t
+				val (t'', brothers) = handleVariations state t'
 			    in
-				(Node (0, newFen, newMove, newMoveAlg, (lsMovesToTree newState t'))) :: brothers
+				(Node (0, newFen, newMove, newMoveAlg, cs, (lsMovesToTree newState t''))) :: brothers
 			    end))
 		| PieceDesamb =>			  
 		  (case (pieceDesambAlgebraicToMove state raw) of
@@ -183,9 +219,10 @@ and lsMovesToTree (state : gamestate) (ls : list pgnGroup) : list pgnTree =
 				val newFen = state_to_fen newState
 				val newMove = moveStr smove
 				val newMoveAlg = moveToAlgebraicClean state smove newState
-				val (t', brothers) = handleVariations state t
+				val (t', cs) = handleComments t
+				val (t'', brothers) = handleVariations state t'
 			    in
-				(Node (0, newFen, newMove, newMoveAlg, (lsMovesToTree newState t'))) :: brothers
+				(Node (0, newFen, newMove, newMoveAlg, cs, (lsMovesToTree newState t''))) :: brothers
 			    end))
 		| Promotion =>
 		  (case (pawnAlgebraicToMove state raw) of
@@ -198,15 +235,14 @@ and lsMovesToTree (state : gamestate) (ls : list pgnGroup) : list pgnTree =
 				val newFen = state_to_fen newState
 				val newMove = moveStr smove
 				val newMoveAlg = moveToAlgebraicClean state smove newState
-				val (t', brothers) = handleVariations state t
+				val (t', cs) = handleComments t
+				val (t'', brothers) = handleVariations state t'
 			    in				
-				(Node (0, newFen, newMove, newMoveAlg, (lsMovesToTree newState t'))) :: brothers
+				(Node (0, newFen, newMove, newMoveAlg, cs, (lsMovesToTree newState t''))) :: brothers
 			    end))
 		| MoveNbr => lsMovesToTree state t (* we can ignore these *)
-		| Comment => lsMovesToTree state t (* FIXME append to node, somehow, or create comment node? *)
-		| StartVariation =>
-		  (* moves until end variation *)
-		  []
+		| Comment => lsMovesToTree state t (* these will be dropped *)
+		| StartVariation => []
 		| EndVariation => []
 		| Result => []
 		| HeaderKey => []

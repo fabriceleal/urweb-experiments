@@ -12,6 +12,7 @@ helloworld.db: helloworld.sql
 	dropdb --if-exists helloworld
 	createdb helloworld
 	psql -f helloworld.sql helloworld
+	psql -f	helloworldPost.sql helloworld
 
 run: helloworld.exe
 	./helloworld.exe
