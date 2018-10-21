@@ -4,5 +4,4 @@
 *.db
 *.db-wal
 *.db-shm
-*.sql
 *.dump
