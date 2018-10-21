@@ -37,9 +37,9 @@ val logoff : unit -> transaction page
 val clockSetup : unit -> transaction page
 
 type timecontrol =
-     {BaseTime : int, Increment: int}
+     {BaseTime : int, Increment: int, ResetIfUnexpired: bool}
 
 type lsTimecontrol = list timecontrol
 			 
-val clock : timecontrol -> transaction page
+val clock : lsTimecontrol -> transaction page
 	    
