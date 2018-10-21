@@ -55,8 +55,7 @@ fun emptyTopLevelHandler (msg : boardmsg) =
 	  
 fun generate_board testFen c size editable getTree getComments doSpeak topLevelHandler ch =
     rctx <- source None;
-    tree <- getTree ();
-    pgnstate <- source tree;
+    pgnstate <- source None;
     renderstate <- source None;
     mousestate <- source {RawX=0,RawY=0};
     cmm <- getComments ();
@@ -107,10 +106,13 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 		
 	and  renderPgn pgn =
 	     case pgn of
-		 Root (_, _, [], _) =>
-		 return <xml> * </xml>
-	       | Root (_, _, (a :: siblings), _) => 
-		 return <xml> {renderPgnN a siblings False} </xml>		
+		 None => return <xml></xml>
+	       | Some pgn' =>
+		 case pgn' of
+		     Root (_, _, [], _) =>
+		     return <xml> * </xml>
+		   | Root (_, _, (a :: siblings), _) => 
+		     return <xml> {renderPgnN a siblings False} </xml>		
 		 
 	and renderComments comments =
 	    return (List.foldl (fn i acc => <xml>{[i]} {acc}</xml>) <xml></xml> comments)
@@ -296,7 +298,18 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 	      | Some c =>
 		setFillStyle c.C2D (getLight ());
 		fillRect c.C2D 0 0 60 60
-		     
+
+	and initTree () =
+	    let
+		fun initTree' () =
+		    tree <- rpc (getTree ());
+		    set pgnstate (Some tree);
+		    return ()
+	    in
+		spawn (initTree' ());
+		return <xml></xml>
+	    end
+	    
 	and init () =
 
 	    bk <- make_img(bless("/BlackKing.svg"));
@@ -495,7 +508,7 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 					       Prom = None
 					      });
 			      x <- rpc (getTree ());
-			      set pgnstate x;
+			      set pgnstate (Some x);
 			      return () 
 			    | None => return ())
 		      | _ =>
@@ -536,6 +549,9 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 	     </xml>),
 	<xml>
 	  <dyn signal={m <- signal pgnstate; renderPgn m } />
+
+	  <active code={initTree ()}>
+	  </active>
 	</xml>,
 	<xml>
 	  <dyn signal={m <- signal commentsstate; renderComments m } />
