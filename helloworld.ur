@@ -165,6 +165,16 @@ fun getComments (id : int) : transaction (list string) =
 		  (fn i => i.Comment.Content)
     
 
+fun optS2S o =
+    case o of
+	None => ""
+      | Some s => s
+
+fun optI2I o =
+    case o of
+	None => 0
+      | Some i => i
+		  
 fun tree3 (root : option int) parentFen =
     let
 	fun recurse root fen =
@@ -293,12 +303,15 @@ fun speak id line =
 		     
 		     room <- getRoom id;
 		     
-		     Room.send room (Position {State = (fen_to_state newFen), Id = idP, Highlight = []})
+		     Room.send room (Position {State = (fen_to_state newFen), Id = idP,
+					       Move = newMove, MoveAlg = newMoveAlg,
+					       Previous = row.Post.CurrentPositionId,
+					       Highlight = []})
 		 end
 	    end
 	  | SBack =>		
 	    row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
-	    row2 <- oneRow (SELECT position.Id, position.Fen
+	    row2 <- oneRow (SELECT position.Id, position.Fen, position.PreviousPositionId, position.Move, position.MoveAlg
 			    FROM position
 			    WHERE position.PostId = {[id]} AND position.Id < {[row.Post.CurrentPositionId]}
 			    ORDER BY position.Id DESC LIMIT 1);
@@ -307,11 +320,13 @@ fun speak id line =
 	    in
 		dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
 		room <- getRoom id;
-		Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
+		Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP,
+					  Move = optS2S row2.Position.Move, MoveAlg = optS2S row2.Position.MoveAlg,
+					  Previous = optI2I row2.Position.PreviousPositionId, Highlight = []})
 	    end
 	  | SForward =>		
 	    row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
-	    row2 <- oneRow (SELECT position.Id, position.Fen
+	    row2 <- oneRow (SELECT position.Id, position.Fen, position.PreviousPositionId, position.Move, position.MoveAlg
 			    FROM position
 			    WHERE position.PostId = {[id]} AND position.Id > {[row.Post.CurrentPositionId]}
 			    ORDER BY position.Id ASC LIMIT 1);
@@ -320,16 +335,20 @@ fun speak id line =
 	    in
 		dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
 		room <- getRoom id;
-		Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
+		Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP,
+					  Move = optS2S row2.Position.Move, MoveAlg = optS2S row2.Position.MoveAlg,
+					  Previous = optI2I row2.Position.PreviousPositionId, Highlight = []})
 	    end
 	  | SPosition idP =>
-	    row2 <- oneRow (SELECT position.Id, position.Fen
+	    row2 <- oneRow (SELECT position.Id, position.Fen, position.PreviousPositionId, position.Move, position.MoveAlg
 			    FROM position
 			    WHERE position.PostId = {[id]} AND position.Id = {[idP]});
 	    
 	    dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
 	    room <- getRoom id;
-	    Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP, Highlight = []})
+	    Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP,
+				      Move = optS2S row2.Position.Move, MoveAlg = optS2S row2.Position.MoveAlg,
+				      Previous = optI2I row2.Position.PreviousPositionId, Highlight = []})
 	    
 	  | SHighlight sq =>
 	    room <- getRoom id;
@@ -353,7 +372,7 @@ fun getTree id =
 
 fun doSpeak id line =	 
     rpc (speak id line)
-
+		 
 fun renderPostTree (id : int) (recTree : bool) : transaction xbody =
     let
 	fun clean () =
@@ -393,6 +412,9 @@ and postPage2 id () =
     cid <- fresh;
     ch <- Room.subscribe current.Post.Room;
     pname <- source current.Post.Nam;
+
+    pgnTree <- getTree current.Post.Id;
+    mutTree <- treeToMtree pgnTree;
     
     (boardy, pgnviewer, commentviewer) <- generate_board current.Position.Fen cid 60 True
 							 (fn _ => getTree current.Post.Id)
@@ -428,7 +450,7 @@ and postPage2 id () =
 	    </div>
 	    <div class={col_sm_4}>
 	      {pgnviewer}
-
+	      
 	      {commentviewer}
 		
 	      <div>
@@ -1392,7 +1414,7 @@ and allPosts () =
 			  cid <- fresh;
 			  ch <- Room.subscribe data.Post.Room;
 			  (board, _, _) <- generate_board data.Position.Fen cid 20 False
-							  (fn _ => getTree data.Post.Id)
+							  emptyTree
 							  (fn _ => return [])
 							  (fn s => doSpeak data.Post.Id s)
 							  emptyTopLevelHandler

@@ -5,7 +5,7 @@ style move_clickable
 style wrapping_span
 style comments_span
 
-type position = { Id: int, State: gamestate, Highlight: list square }
+type position = { Id: int, Previous : int, State: gamestate, Move : string, MoveAlg: string, Highlight: list square }
 		
 datatype boardmsg =
 	 Highlight of square
@@ -52,14 +52,92 @@ val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
 
 fun emptyTopLevelHandler (msg : boardmsg) =
     return ()
-	  
+
+fun emptyTree _ =
+    return (Root (0, "", [], []))
+
+(* TODO this structure will need to know more things to render the tree properly. 
+some info comes from the parent in the old renderPgn functions! *)
+    
+datatype mutableTree =
+	 Move of {Id:int, Move: string, MoveAlg: string, Position: string, Children: source (list mutableTree)}
+
+datatype mutableTreeRoot =
+	 StartP of {Id:int, Position:string, Children: source (list mutableTree) }
+
+fun ltreeToMtree (ls : list pgnTree) : transaction (list mutableTree) =
+    case ls of
+	[] => return []
+      | h :: t =>
+	case h of
+	    Node (id, position, move, alg, _, children) =>
+	    lsCh <- ltreeToMtree children;
+	    ch <- source lsCh;
+	    rest <- ltreeToMtree t;
+	    return ((Move {Id = id, Position = position, Move = move, MoveAlg = alg, Children = ch}) :: rest)
+		 
+fun treeToMtree (root : pgnRoot) : transaction mutableTreeRoot =
+    case root of
+	Root (id, position, children, _) =>
+	ls <- ltreeToMtree children;
+	c <- source ls;
+	return (StartP {Id=id, Position = position, Children = c })
+
+fun pToNode p =
+    ch <- source [];
+    return (Move {Id = p.Id, Move = p.Move, MoveAlg = p.MoveAlg, Position = state_to_fen p.State, Children = ch})
+
+fun chContainsId ch id =
+    case (List.find (fn e => case e of
+				 Move r => r.Id = id) ch) of
+	None => False
+      | Some _ => True
+    
+fun addToMtreeL p ls =
+    case ls of
+	[] => return False
+      | h :: t =>
+	case h of
+	    Move r =>
+	    ch <- get r.Children;
+	    if r.Id = p.Previous then
+		(* TODO do not change tree if the element is already there!! *)
+		(if (chContainsId ch p.Id) then
+		     return True
+		 else
+		     e <- pToNode p;
+		     set r.Children (e :: ch);
+		     return True)
+	    else
+		rest <- addToMtreeL p t;
+		if rest then
+		    return True
+		else
+		    addToMtreeL p ch
+    
+fun addToMtree p mtreeSrc =
+    elem <- get mtreeSrc;
+    case elem of
+	StartP r =>
+	ls <- get r.Children;
+	if r.Id = p.Previous then
+	    e <- pToNode p;
+	    set r.Children (e :: ls)
+	else
+	    _ <- addToMtreeL p ls;
+	    return ()
+		
 fun generate_board testFen c size editable getTree getComments doSpeak topLevelHandler ch =
     rctx <- source None;
-    pgnstate <- source None;
+(*    pgnstate <- source None;*)
     renderstate <- source None;
     mousestate <- source {RawX=0,RawY=0};
     cmm <- getComments ();
     commentsstate <- source cmm;
+
+    tree <- getTree ();
+    mtree <- treeToMtree tree;
+    mtreeSrc <- source mtree;
     
     let
 	(*
@@ -79,6 +157,36 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 
 	fun renderPgnN pgnN siblings forceAlg =
 	    case pgnN of
+		Move r =>
+		
+		let
+		    fun renderRest children = 
+			case children of
+			    [] => return <xml></xml>
+			  | a :: siblings' => renderPgnN a siblings' (any siblings)
+
+		    fun renderSiblings siblings =
+			case siblings of
+			    [] => return <xml></xml>
+			  | _ :: _ =>
+			    (*return <xml>
+			      { List.foldl (fn rc acc => <xml>{acc} ( {renderPgnN rc [] True} )</xml>) <xml></xml> siblings}
+			    </xml>*)
+			    return <xml>
+			      { List.foldl (fn _ acc => <xml>{acc} (  )</xml>) <xml></xml> siblings}
+			    </xml>
+			    
+		in
+		    siblingsRender <- renderSiblings siblings;
+		    return <xml>
+		      <span class="move_clickable wrapping_span" onclick={fn _ => doSpeak (SPosition r.Id)}>
+			{[(moveToAlgebraic (fen_to_state r.Position) (str_to_move r.Move) r.MoveAlg forceAlg)]}
+		      </span>
+		      {siblingsRender}
+		      <dyn signal={children <- signal r.Children; renderRest children} />
+		    </xml>
+		end
+	    (*case pgnN of
 		Node (idP, fen, move, moveAlg, comments, children) =>
 		let
 		    val rest = case children of
@@ -102,9 +210,23 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 		      {siblingsRender}
 		      {rest}
 		    </xml>
-		end
+		end*)
 		
 	and  renderPgn pgn =
+	     case pgn of
+		 StartP r => 
+		 let
+		     fun renderPgn' children =
+			 case children of
+			     [] => return <xml> * </xml>
+			   | a :: siblings =>
+			     b <- renderPgnN a siblings False;
+			     return <xml> {b} </xml>
+		 in
+		     return <xml><dyn signal={c <- signal r.Children; renderPgn' c} /></xml>
+		 end
+	     
+	     (*
 	     case pgn of
 		 None => return <xml></xml>
 	       | Some pgn' =>
@@ -112,7 +234,7 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 		     Root (_, _, [], _) =>
 		     return <xml> * </xml>
 		   | Root (_, _, (a :: siblings), _) => 
-		     return <xml> {renderPgnN a siblings False} </xml>		
+		     return <xml> {renderPgnN a siblings False} </xml>	*)	
 		 
 	and renderComments comments =
 	    return (List.foldl (fn i acc => <xml>{[i]} {acc}</xml>) <xml></xml> comments)
@@ -298,7 +420,7 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 	      | Some c =>
 		setFillStyle c.C2D (getLight ());
 		fillRect c.C2D 0 0 60 60
-
+(*
 	and initTree () =
 	    let
 		fun initTree' () =
@@ -308,7 +430,7 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 	    in
 		spawn (initTree' ());
 		return <xml></xml>
-	    end
+	    end *)
 	    
 	and init () =
 
@@ -507,8 +629,9 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 					       DragPiece = None,
 					       Prom = None
 					      });
-			      x <- rpc (getTree ());
-			      set pgnstate (Some x);
+			      (* x <- rpc (getTree ());
+			       set pgnstate (Some x); *)
+			      addToMtree p mtreeSrc;
 			      return () 
 			    | None => return ())
 		      | _ =>
@@ -531,7 +654,7 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 	    end	    
 	    
 
-    in	
+    in
 	return (
 	(if editable then
 	     <xml>
@@ -547,11 +670,13 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 	       <active code={init ()}>
 	       </active>
 	     </xml>),
-	<xml>
+	<xml> (*
 	  <dyn signal={m <- signal pgnstate; renderPgn m } />
 
 	  <active code={initTree ()}>
-	  </active>
+</active> *)
+	 <dyn signal={m <- signal mtreeSrc; renderPgn m} />
+	   
 	</xml>,
 	<xml>
 	  <dyn signal={m <- signal commentsstate; renderComments m } />
