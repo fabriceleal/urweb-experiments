@@ -5,7 +5,7 @@ style move_clickable
 style wrapping_span
 style comments_span
 
-type position = { Id: int, Previous : int, State: gamestate, Move : string, MoveAlg: string, Highlight: list square }
+type position = { Id: int, Previous : int, State: gamestate, Old : gamestate, Move : string, MoveAlg: string, Highlight: list square }
 		
 datatype boardmsg =
 	 Highlight of square
@@ -60,10 +60,10 @@ fun emptyTree _ =
 some info comes from the parent in the old renderPgn functions! *)
     
 datatype mutableTree =
-	 Move of {Id:int, Move: string, MoveAlg: string, Position: string, Children: source (list mutableTree)}
+	 Move of {Id:int, Move: string, MoveAlg: string, Position: gamestate, Children: source (list mutableTree)}
 
 datatype mutableTreeRoot =
-	 StartP of {Id:int, Position:string, Children: source (list mutableTree) }
+	 StartP of {Id:int, Position:gamestate, Children: source (list mutableTree) }
 
 fun ltreeToMtree (ls : list pgnTree) : transaction (list mutableTree) =
     case ls of
@@ -74,18 +74,18 @@ fun ltreeToMtree (ls : list pgnTree) : transaction (list mutableTree) =
 	    lsCh <- ltreeToMtree children;
 	    ch <- source lsCh;
 	    rest <- ltreeToMtree t;
-	    return ((Move {Id = id, Position = position, Move = move, MoveAlg = alg, Children = ch}) :: rest)
+	    return ((Move {Id = id, Position = fen_to_state position, Move = move, MoveAlg = alg, Children = ch}) :: rest)
 		 
 fun treeToMtree (root : pgnRoot) : transaction mutableTreeRoot =
     case root of
 	Root (id, position, children, _) =>
 	ls <- ltreeToMtree children;
 	c <- source ls;
-	return (StartP {Id=id, Position = position, Children = c })
+	return (StartP {Id=id, Position = fen_to_state position, Children = c })
 
 fun pToNode p =
     ch <- source [];
-    return (Move {Id = p.Id, Move = p.Move, MoveAlg = p.MoveAlg, Position = state_to_fen p.State, Children = ch})
+    return (Move {Id = p.Id, Move = p.Move, MoveAlg = p.MoveAlg, Position = p.Old, Children = ch})
 
 fun chContainsId ch id =
     case (List.find (fn e => case e of
@@ -106,7 +106,7 @@ fun addToMtreeL p ls =
 		     return True
 		 else
 		     e <- pToNode p;
-		     set r.Children (e :: ch);
+		     set r.Children (List.append ch (e :: []));
 		     return True)
 	    else
 		rest <- addToMtreeL p t;
@@ -121,8 +121,11 @@ fun addToMtree p mtreeSrc =
 	StartP r =>
 	ls <- get r.Children;
 	if r.Id = p.Previous then
-	    e <- pToNode p;
-	    set r.Children (e :: ls)
+	    (if (chContainsId ls p.Id) then
+		 return ()
+	     else
+		 e <- pToNode p;
+		 set r.Children (List.append ls (e :: [])))
 	else
 	    _ <- addToMtreeL p ls;
 	    return ()
@@ -164,23 +167,23 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 			case children of
 			    [] => return <xml></xml>
 			  | a :: siblings' => renderPgnN a siblings' (any siblings)
-
+					      
 		    fun renderSiblings siblings =
 			case siblings of
 			    [] => return <xml></xml>
-			  | _ :: _ =>
-			    (*return <xml>
-			      { List.foldl (fn rc acc => <xml>{acc} ( {renderPgnN rc [] True} )</xml>) <xml></xml> siblings}
-			    </xml>*)
+			  | h :: t =>
+			    rest <- renderSiblings t;
+			    h' <- renderPgnN h [] True;
 			    return <xml>
-			      { List.foldl (fn _ acc => <xml>{acc} (  )</xml>) <xml></xml> siblings}
-			    </xml>
+			      ( {h'} )
+			      {rest}
+			    </xml>			    
 			    
 		in
 		    siblingsRender <- renderSiblings siblings;
 		    return <xml>
 		      <span class="move_clickable wrapping_span" onclick={fn _ => doSpeak (SPosition r.Id)}>
-			{[(moveToAlgebraic (fen_to_state r.Position) (str_to_move r.Move) r.MoveAlg forceAlg)]}
+			{[(moveToAlgebraic r.Position (str_to_move r.Move) r.MoveAlg forceAlg)]}
 		      </span>
 		      {siblingsRender}
 		      <dyn signal={children <- signal r.Children; renderRest children} />

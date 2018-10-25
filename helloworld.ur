@@ -198,11 +198,44 @@ fun tree3 (root : option int) parentFen =
 	    ch <- recurse root parentFen;
 	    return (Root (root', parentFen, ch, []))
     end
-	(**)
+
+fun treeOn (root : option int) parentFen rows =
+    let
+	fun recurse root fen =
+	    let 
+		val children = List.filter (fn e =>
+			    case (e.Position.PreviousPositionId, root) of
+				(None, None) => True
+			      | (Some a, Some b) => a = b
+			      | (_, _) => False) rows
+
+	    in
+		List.mp (fn r =>
+			      case (r.Position.Move, r.Position.MoveAlg) of
+				  (Some move, Some alg) =>
+				  Node (r.Position.Id, fen, move, alg, [], recurse (Some r.Position.Id) r.Position.Fen)
+				| (_, _) =>
+				  Node (r.Position.Id, "", "", "", [], [])
+			) children
+	    end
+    in
+	case root of
+	    None =>
+	    Root (0, "", [], [])
+	  | Some root' => 
+	    Root (root', parentFen, recurse root parentFen, [])
+    end
 
 fun tree4 (id: int) =
     current <- oneRow (SELECT post.RootPositionId, position.Fen FROM post JOIN position ON post.RootPositionId = position.Id WHERE post.Id = {[id]});
-    tree3 (Some current.Post.RootPositionId) current.Position.Fen   
+    tree3 (Some current.Post.RootPositionId) current.Position.Fen
+
+fun treeAtOnce (id:int) =
+    root <- oneRow (SELECT post.RootPositionId, position.Fen
+		    FROM post JOIN position ON post.RootPositionId = position.Id WHERE post.Id = {[id]});
+    rows <- queryL (SELECT position.PostId, position.Id, position.PreviousPositionId, position.Fen, position.Move, position.MoveAlg
+		    FROM position WHERE position.PostId = {[id]});
+    return (treeOn (Some root.Post.RootPositionId) root.Position.Fen rows)
 		     
 
 fun getRoom id =
@@ -303,14 +336,16 @@ fun speak id line =
 		     
 		     room <- getRoom id;
 		     
-		     Room.send room (Position {State = (fen_to_state newFen), Id = idP,
+		     Room.send room (Position {State = (fen_to_state newFen),
+					       Old = state, Id = idP,
 					       Move = newMove, MoveAlg = newMoveAlg,
 					       Previous = row.Post.CurrentPositionId,
 					       Highlight = []})
 		 end
 	    end
-	  | SBack =>		
-	    row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
+	  | SBack =>
+	    return ()
+	    (* row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
 	    row2 <- oneRow (SELECT position.Id, position.Fen, position.PreviousPositionId, position.Move, position.MoveAlg
 			    FROM position
 			    WHERE position.PostId = {[id]} AND position.Id < {[row.Post.CurrentPositionId]}
@@ -323,9 +358,10 @@ fun speak id line =
 		Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP,
 					  Move = optS2S row2.Position.Move, MoveAlg = optS2S row2.Position.MoveAlg,
 					  Previous = optI2I row2.Position.PreviousPositionId, Highlight = []})
-	    end
-	  | SForward =>		
-	    row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
+	    end *)
+	  | SForward =>
+	    return ()
+	    (* row <- oneRow (SELECT post.CurrentPositionId FROM post WHERE post.Id = {[id]});
 	    row2 <- oneRow (SELECT position.Id, position.Fen, position.PreviousPositionId, position.Move, position.MoveAlg
 			    FROM position
 			    WHERE position.PostId = {[id]} AND position.Id > {[row.Post.CurrentPositionId]}
@@ -338,15 +374,22 @@ fun speak id line =
 		Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP,
 					  Move = optS2S row2.Position.Move, MoveAlg = optS2S row2.Position.MoveAlg,
 					  Previous = optI2I row2.Position.PreviousPositionId, Highlight = []})
-	    end
+	    end *)
 	  | SPosition idP =>
 	    row2 <- oneRow (SELECT position.Id, position.Fen, position.PreviousPositionId, position.Move, position.MoveAlg
-			    FROM position
+			    FROM position			     
 			    WHERE position.PostId = {[id]} AND position.Id = {[idP]});
+
+	    row3 <- oneRow (SELECT position.Id, position.Fen
+			    FROM position
+			    WHERE position.Id = {[case (row2.Position.PreviousPositionId) of
+			      None => 0
+			      | Some i => i]} );
 	    
 	    dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
 	    room <- getRoom id;
-	    Room.send room (Position {State = (fen_to_state row2.Position.Fen), Id = idP,
+	    Room.send room (Position {State = (fen_to_state row2.Position.Fen),
+				      Old = (fen_to_state row3.Position.Fen), Id = idP,
 				      Move = optS2S row2.Position.Move, MoveAlg = optS2S row2.Position.MoveAlg,
 				      Previous = optI2I row2.Position.PreviousPositionId, Highlight = []})
 	    
@@ -368,7 +411,8 @@ fun speak id line =
 	    Room.send room (ChangeName txt)
 
 fun getTree id =
-    tree4 id
+    treeAtOnce id
+(*    tree4 id *)
 
 fun doSpeak id line =	 
     rpc (speak id line)

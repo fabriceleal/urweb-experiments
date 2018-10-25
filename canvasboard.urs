@@ -5,7 +5,7 @@ datatype pgnRoot = datatype Chess.pgnRoot
 type square = Chess.square
 type gamestate = Chess.gamestate
 
-type position = { Id: int, Previous : int, State: gamestate, Move : string, MoveAlg: string, Highlight: list square }
+type position = { Id: int, Previous : int, State: gamestate, Old: gamestate, Move : string, MoveAlg: string, Highlight: list square }
 		
 datatype boardmsg =
 	 Highlight of square
@@ -53,10 +53,10 @@ val state_to_board : gamestate -> boardstate
 val fen_to_board : string -> boardstate
 
 datatype mutableTree =
-	 Move of {Id:int, Move: string, MoveAlg: string, Position: string, Children: source (list mutableTree)}
+	 Move of {Id:int, Move: string, MoveAlg: string, Position: gamestate, Children: source (list mutableTree)}
 		 
 datatype mutableTreeRoot =
-	 StartP of {Id:int, Position:string, Children: source (list mutableTree) }
+	 StartP of {Id:int, Position:gamestate, Children: source (list mutableTree) }
 
 val treeToMtree : pgnRoot -> transaction mutableTreeRoot
 			     
