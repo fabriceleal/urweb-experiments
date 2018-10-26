@@ -1,7 +1,7 @@
-
-val invites: unit -> transaction page
-		     
 val index : unit -> transaction page
+		    
+val invites: unit -> transaction page
+ 
 (*
 val createPost : unit -> transaction page
 *)			 

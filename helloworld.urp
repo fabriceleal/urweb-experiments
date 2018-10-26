@@ -17,15 +17,16 @@ library ../urweb-nmarkdown/nmarkdown
 library $/crypto-hash-openssl/lib
 library $/crypto-random-openssl/lib
 library $/bootstrap/bootstrap4
-safeGet Helloworld/allPosts
-safeGet Helloworld/postPage2
+rewrite url Helloworld/index
+rewrite url Helloworld/*
+safeGet allPosts
+safeGet postPage2
 database dbname=helloworld
 sql helloworld.sql
 allow mime text/plain
 allow mime application/octet-stream
 rewrite all ContentDisposition/*
 allow responseHeader Content-Disposition
-allow url /Helloworld/allPosts
 file /bodyn.css rsrc/css/bodyn.css
 file /bodyj.css rsrc/css/bodyj.css
 file /auth.css rsrc/css/auth.css

@@ -1201,39 +1201,6 @@ and invites () =
 		</div>
 	    </xml> u'
 
-and index () =
-    u <- currUser ();
-    case u of
-	       None =>
-	       (* <xml>
-		 <body>
-		   <form>
-		     <table>
-		       <tr><th>Name</th><td><textbox{#Nam}/></td></tr>
-		       <tr><th>Password:</th><td><password{#Pass}/></td></tr>
-		       <tr><td><submit action={logon}/></td></tr>
-		       <tr></tr>
-		     </table>
-		   </form>
-		 </body>
-		 </xml> *)
-	       index_login ()
-	       
-	     | Some u => 
-	       (* <xml>
-		 <body>
-		   <h1>Welcome to the turtle corner! {[u.Nam]}</h1>
-		   <a link={index ()}>index</a>
-		   <a link={invites ()}>my invites</a>
-		   <a link={me ()}>my profile</a>
-		   <a link={myPosts ()}>my posts</a>
-		   <a link={logoff ()}>logoff</a>
-		   <a link={createPost ()}>create post</a>
-		   <a link={allPosts  ()}>all posts</a>
-		 </body>
-		 </xml> *)
-	       index_on u
-
 and handleTestUpload r =
     return <xml>
       <body>
@@ -1976,3 +1943,11 @@ and clock ltc =
 		</xml>
 	    end
 	end
+
+and index () =
+    u <- currUser ();
+    case u of
+	None =>
+	index_login ()	
+      | Some u => 
+	index_on u
