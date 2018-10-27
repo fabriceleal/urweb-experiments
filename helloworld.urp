@@ -20,6 +20,7 @@ library $/bootstrap/bootstrap4
 rewrite url Helloworld/index
 rewrite url Helloworld/*
 safeGet allPosts
+safeGet postsPage
 safeGet postPage2
 database dbname=helloworld
 sql helloworld.sql

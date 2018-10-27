@@ -159,7 +159,18 @@ val offProm = 2
 val canvasW = size * 9 + offProm
 val canvasH = size * 8
 
+datatype pageKind =
+	 Active of string * url
+       | Current of string
+       | Inactive of string
 
+datatype menuKind =
+	 NMenu
+       | Home
+       | Posts
+       | Profile
+       | Invites
+     
 fun getComments (id : int) : transaction (list string) =
     List.mapQuery (SELECT comment.Content FROM comment WHERE comment.PositionId = {[id]} ORDER BY comment.Id)
 		  (fn i => i.Comment.Content)
@@ -506,458 +517,9 @@ and postPage2 id () =
 	      </div>
 	    </div>
 	  </div>
-	</div>
-	  </xml>
-    (*
-and  postPage id () =
-    
-    current <- oneRow (SELECT post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
-		       FROM post
-			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
-			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
-		       WHERE post.Id = {[id]});
-
-    moveTree <- tree3 (Some current.Post.RootPositionId) current.PositionR.Fen;
-
-    pgnstate <- source moveTree;
-    renderstate <- source None;
-    mousestate <- source {RawX=0,RawY=0};
-    
-    ch <- Room.subscribe current.Post.Room;
-    c <- fresh;
-    
-    let
-	
-	fun renderPgnN pgnN siblings forceAlg =
-	    case pgnN of
-		Node (idP, fen, move, moveAlg, children) =>
-		let
-		    val rest = case children of
-				   [] => <xml></xml>
-				 | a :: siblings' =>  renderPgnN a siblings' (any siblings)
-
-		    val siblingsRender = case siblings of
-					     [] => <xml></xml>
-					   | _ :: _ =>
-					     <xml>
-					       { List.foldl (fn rc acc => <xml>{acc} ( {renderPgnN rc [] True} )</xml>) <xml></xml> siblings}
-					     </xml>
-		in
-		    <xml>
-		      <span class="move_clickable wrapping_span" onclick={fn _ => doSpeak id (SPosition idP)}>
-			{[(moveToAlgebraic (fen_to_state fen) (str_to_move move) moveAlg forceAlg)]}
-		      </span>
-		      {siblingsRender}
-		      {rest}
-		    </xml>
-		end
-		
-	and  renderPgn pgn =
-	     case pgn of
-		 Root (_, _, []) =>
-		 return <xml> * </xml>
-	       | Root (_, _, (a :: siblings)) => 
-		 return <xml> {renderPgnN a siblings False} </xml>		
-		 
-	and clampToBoardCoordinateX rawX =
-	    trunc (float(rawX) / float(size))
-
-	and clampToBoardCoordinateY rawY =
-	    trunc (float(rawY) / float(size))
-	    
-	and yPromToKind y =
-	    case y of
-		0 => Some Queen
-	      | 7 => Some Queen
-	      | 1 => Some Rook
-	      | 6 => Some Rook
-	      | 2 => Some Bishop
-	      | 5 => Some Bishop
-	      | 3 => Some Knight
-	      | 4 => Some Knight
-	      | _ => None
-		     
-	and clampToPromSq rawX rawY =
-	    if rawX >= (size * 8) + offProm && rawX <= (size * 9) + offProm then		    
-		yPromToKind (clampToBoardCoordinateY rawY)
-	    else
-		None
-
-	and insideQuad rawX rawY srcX srcY size =
-	    rawX >= srcX && rawX <= (srcX + size) && rawY >= srcY && rawY <= (srcY + size)
-								     
-	and mousedown e =
-	    p' <- get renderstate;
-	    case p' of
-		Some p'' => 
-		let
-		    val sqX = clampToBoardCoordinateX e.OffsetX
-		    val sqY = clampToBoardCoordinateY e.OffsetY
-		    val f' = (pieceInSquare sqX sqY)
-		    val maybepiecer = List.find f' p''.Pieces
-		in
-		    (* if we hit a square with a piece, grab that piece *)
-		    case maybepiecer of
-			None => return ()
-		      | Some piecer =>
-			let		
-			    val st : boardstate = {
-				Highlight = [], 
-				Pieces = (removePSquare p''.Pieces f'),
-				Full = p''.Full,
-				DragPiece = Some {
-				Src = { RawX = e.OffsetX,
-					RawY = e.OffsetY
-				      },
-				Current = { RawX = e.OffsetX,
-					    RawY = e.OffsetY
-					  },
-				Piece = piecer.Piece
-				},
-				Prom = None}
-			in
-			    set renderstate (Some st);
-			    return ()
-			end	
-		end
-	      | None => return ()
-
-	and handlePseudoLegalMoveUI (rstate : boardstate) (move : move) =
-	    case (doMove rstate.Full move) of
-		None =>
-		let
-		    val st = {Highlight = rstate.Highlight,
-			      Pieces = rstate.Full.Pieces,
-			      Full = rstate.Full,
-			      DragPiece = None,
-			      Prom = None}
-		in
-		    set renderstate (Some st);
-		    return ()
-		end
-	      | Some newState =>
-		let
-		    val st = {Highlight = [],
-			      Pieces = newState.Pieces,
-			      Full = newState,
-			      DragPiece = None,
-			      Prom = None}
-		in
-		    set renderstate (Some st);
-		    doSpeak id (SMovePiece (move.Src, move.Dest, move.Prom));
-		    return ()
-		end
-		
-	and mouseup e =
-	    p' <- get renderstate;
-	    case p' of
-		Some p'' =>
-		(case p''.DragPiece of
-		     None =>
-		     (case p''.Prom of
-			  None => return ()
-			| Some prom' => 
-			  
-			  (* detect click in promotion area *)
-			  (case (clampToPromSq e.OffsetX e.OffsetY) of
-			       None => return ()
-			     | Some p =>
-			       handlePseudoLegalMoveUI p'' {Src=prom'.Src, Dest = prom'.Dest, Prom=Some p}))
-		     
-		   | Some d =>
-		     let
-			 val sqX = clampToBoardCoordinateX e.OffsetX
-			 val sqY = clampToBoardCoordinateY e.OffsetY
-
-			 val srcX = clampToBoardCoordinateX d.Src.RawX
-			 val srcY = clampToBoardCoordinateY d.Src.RawY
-
-		     in
-			 if (requiresPromotionSq p''.Full.Pieces srcX srcY sqX sqY) then
-			     let
-				 val st = {Highlight = p''.Highlight,
-					   Pieces = p''.Full.Pieces,
-					   Full = p''.Full,
-					   DragPiece = None,
-					   Prom = Some {Src={X=srcX,Y=srcY},Dest={X=sqX,Y=sqY}}}
-			     in
-				 set renderstate (Some st);
-				 return ()
-			     end
-			 else
-			     handlePseudoLegalMoveUI p'' {Src={X=srcX,Y=srcY}, Dest = {X=sqX,Y=sqY}, Prom=None}
-		     end)
-	      | None => return ()
-			
-
-	and mousemove e =
-	    p' <- get renderstate;
-	    (case p' of
-		 None => return ()
-	       | Some p'' =>
-		 case p''.DragPiece of
-		     None => return ()			
-		   | Some d => 		    
-		     let
-			 val st : boardstate = {
-			     Highlight = p''.Highlight,
-			     Pieces = p''.Pieces,
-			     Full = p''.Full,
-			     DragPiece = Some {
-			     Src = d.Src,
-			     Current = {
-			     RawX = e.OffsetX,
-			     RawY = e.OffsetY
-			     },
-			     Piece = d.Piece
-			     },
-			     Prom = None}
-		     in
-			 set renderstate (Some st);
-			 return ()
-		     end);
-	    set mousestate {RawX = e.OffsetX, RawY = e.OffsetY}
-	    
-	and loadPage () =
-	    
-
-	    bk <- make_img(bless("/BlackKing.png"));
-	    bq <- make_img(bless("/BlackQueen.png"));
-	    br <- make_img(bless("/BlackRook.png"));
-	    bb <- make_img(bless("/BlackBishop.png"));
-	    bn <- make_img(bless("/BlackKnight.png"));
-	    bp <- make_img(bless("/BlackPawn.png"));
-	    
-	    
-	    wk <- make_img(bless("/WhiteKing.png"));
-	    wq <- make_img(bless("/WhiteQueen.png"));
-	    wr <- make_img(bless("/WhiteRook.png"));
-	    wb <- make_img(bless("/WhiteBishop.png"));
-	    wn <- make_img(bless("/WhiteKnight.png"));
-	    wp <- make_img(bless("/WhitePawn.png"));
-	    
-	    
-	    ctx <- getContext2d c;
-	    
-	    let
-
-		fun paint_row0 ctx row =	    
-		    fillRect ctx 0 (row * size) size size;
-		    fillRect ctx (size * 2) (row * size) size size;
-		    fillRect ctx (size * 4) (row * size) size size;
-		    fillRect ctx (size * 6) (row * size) size size
-		    
-		and paint_row1 ctx row =	    
-		    fillRect ctx (size) (row * size) size size;
-		    fillRect ctx (size * 2 + size) (row * size) size size;
-		    fillRect ctx (size * 4 + size) (row * size) size size;
-		    fillRect ctx (size * 6 + size) (row * size) size size
-
-		and paint_prom_sq ctx row piece ms =
-		    (if (insideQuad ms.RawX ms.RawY (size * 8 + offProm) (row * size) size) then			    
-			 setFillStyle ctx promBgSel
-		     else
-			 setFillStyle ctx promBg); 
-		    fillRect ctx (size * 8 + offProm) (row * size) size size;
-		    draw_piece_dl ctx piece (float (size * 8 + offProm)) (float (row * size))
-
-		and paint_prom ctx pr x' =
-		    case pr of
-			Some p =>
-			if p.Dest.Y = 0 then
-			    (paint_prom_sq ctx 0 WhiteQueen x';
-			     paint_prom_sq ctx 1 WhiteRook x';
-			     paint_prom_sq ctx 2 WhiteBishop x';
-			     paint_prom_sq ctx 3 WhiteKnight x')
-			else
-			    (paint_prom_sq ctx 4 BlackKnight x';
-			     paint_prom_sq ctx 5 BlackBishop x';
-			     paint_prom_sq ctx 6 BlackRook x';
-			     paint_prom_sq ctx 7 BlackQueen x')
-		      | None => return ()
-				
-		and piece_to_id piece =
-		    case piece of
-			WhiteKing => wk
-		      | WhiteQueen => wq
-		      | WhiteRook => wr
-		      | WhiteBishop => wb
-		      | WhiteKnight => wn
-		      | WhitePawn => wp
-		      | BlackKing => bk
-		      | BlackQueen => bq
-		      | BlackRook => br
-		      | BlackBishop => bb
-		      | BlackKnight => bn
-		      | BlackPawn => bp
-
-		and draw_piece_dl ctx piece x y =
-		    drawImage2 ctx (piece_to_id piece) x y (float size) (float size)
-		    
-		and draw_piece ctx (p : piecerec) =		    
-		    (*	drawImage2 ctx (piece_to_id p.Piece) (float (size * p.X)) (float (size * p.Y)) (float size) (float size) *)
-		    draw_piece_dl ctx p.Piece (float (size * p.X)) (float (size * p.Y))
-		    
-		and draw_pieces ctx ps =
-		    case ps of
-			h :: rest =>
-			draw_piece ctx h;
-			draw_pieces ctx rest
-		      | _ => return ()
-
-		and drawHighlight ctx (h : square) =
-		    fillRect ctx (size * h.X) (size * h.Y) size size
-		    
-		and drawHighlights ctx hs =
-		    case hs of
-			h :: rest =>
-			drawHighlight ctx h;
-			drawHighlights ctx rest
-		      | _ => return ()
-
-		and draw_piecedrag ctx pd =
-		    case pd of
-			Some pd' =>
-			drawImage2 ctx (piece_to_id pd'.Piece) (float(pd'.Current.RawX) - (float(size) / 2.0)) (float(pd'.Current.RawY) - (float(size) / 2.0)) (float size) (float size)
-		      | _ => return ()
-			     
-		and drawBoard ctx x x' =
-		    let
-			val hs = x.Highlight
-			val ps = x.Pieces
-			val pd = x.DragPiece
-			val pr = x.Prom
-		    in
-			clearRect ctx (float 0) (float 0) (float canvasW) (float canvasH);
-			setFillStyle ctx light;
-			paint_row0 ctx 0;
-			paint_row1 ctx 1;
-			paint_row0 ctx 2;
-			paint_row1 ctx 3;
-			paint_row0 ctx 4;
-			paint_row1 ctx 5;
-			paint_row0 ctx 6;
-			paint_row1 ctx 7;
-			
-			setFillStyle ctx dark;
-			paint_row1 ctx 0;
-			paint_row0 ctx 1;
-			paint_row1 ctx 2;
-			paint_row0 ctx 3;
-			paint_row1 ctx 4;
-			paint_row0 ctx 5;
-			paint_row1 ctx 6;
-			paint_row0 ctx 7;
-			
-			paint_prom ctx pr x';
-			(* TODO otherwise just clear this section? *)
-
-			setFillStyle ctx red;
-			drawHighlights ctx hs;
-
-			draw_pieces ctx ps;
-
-			draw_piecedrag ctx pd;
-			
-			return ()
-		    end
-
-		(* TODO arrows *)
-		and drawBoard2 ctx x x'=
-		    drawBoard ctx x x'
-
-		and drawBoard3 () =
-		    x2 <- get renderstate;
-		    x3 <- get mousestate;
-		    case x2  of
-			Some x => 
-			drawBoard2 ctx x x3
-		      | _ => return ()
-
-		and drawBoard4 () =
-		    drawBoard3 ();
-		    setTimeout drawBoard4 30
-
-		and handle_boardmsg s =
-		    case s of			   
-			Highlight(sq) =>
-			(s' <- get renderstate;
-			 case s' of
-			    | Some s'' =>
-			      set renderstate (Some {
-					       Highlight = sq :: [],
-					       Pieces = s''.Pieces,
-					       Full = s''.Full,
-					       DragPiece = s''.DragPiece,
-					       Prom = None
-					      })
-			    | None => return ())
-		      | Position(p) =>
-			(s' <- get renderstate;
-			 case s' of
-			    | Some s'' =>
-			      set renderstate (Some {
-					       Highlight = [],
-					       Pieces = p.State.Pieces,
-					       Full = p.State,
-					       DragPiece = None,
-					       Prom = None
-					      });
-			      x <- rpc (getTree id);
-			      set pgnstate x
-			    | None => return ())
-			
-			
-		and listener () =
-		    s <- recv ch;
-		    handle_boardmsg s;
-		    listener ()
-		    
-	    in
-		set renderstate (Some (fen_to_board current.Position.Fen));
-		requestAnimationFrame2 drawBoard3;
-
-		listener ();
-		return ()
-	    end
-
-    in
-	
-	return  <xml>
-	  <head>
-	    <title>Post # {[id]}</title>
-	    <link rel="stylesheet" type="text/css" href="/exp.css"/>
-	    <link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
-	  </head>
-	  <body onload={loadPage ()} >
-	    <div class="container">
-	    <h1>{[id]} {[current.Post.Nam]}</h1>
-
-	    <div class="row">
-	      <div class={col_sm_2}>
-
-		<a link={index()}>another page</a>
-		<a link={allPosts()}>all posts</a>
-		
-		<button value="Back" onclick={fn _ => doSpeak id SBack } />
-		  <button value="Fw" onclick={fn _ => doSpeak id SForward } />
-		    <a link={downloadPost id}>download</a>
-	      </div>
-	      <div class={col_sm_6}>
-		<canvas id={c} width={canvasW} height={canvasH} onmousedown={mousedown} onmouseup={mouseup} onmousemove={mousemove} >
-	      </canvas>
-	    </div>
-	    <div class={col_sm_4}>
-	      <dyn signal={m <- signal pgnstate; renderPgn m } />
-	    </div>
-	    </div>
-	    
-	</div>
-			      </body>
-			</xml>
-    end *)
-
-
+	  </div>
+	  </xml> NMenu
+   
 and downloadPost id =
     let
 	fun renderPgnN pgnN siblings forceAlg =
@@ -1153,7 +715,7 @@ and generateInvite r =
 		Copy (right click on link - Copy Link Location) and send this link:
 		
 		<a link={createAccount inv.Invite.Code}>Link</a>
-	    </xml> u'
+	    </xml> u' NMenu
     
 and invites () =
     u <- currUser ();
@@ -1180,8 +742,6 @@ and invites () =
 			  </xml>) <xml></xml>; (**)
 	genPage
 	    <xml>	      
-		<h2>Invites</h2>
-		
 		Send invite: you have x left
 		<form>
 		  <textbox{#To} />
@@ -1199,7 +759,7 @@ and invites () =
 		    {rows}
 		  </table>
 		</div>
-	    </xml> u'
+	    </xml> u' Invites
 
 and handleTestUpload r =
     return <xml>
@@ -1391,7 +951,7 @@ and allTurtles () =
 	
 and turtle id =    
     c <- userProfile id;
-    genPageU c
+    genPageU c NMenu
 
 and me () =
     u <- currUser ();
@@ -1399,7 +959,7 @@ and me () =
 	None => redirect (url (index ())) (* error <xml>Not authenticated</xml> *)
       | Some u' =>
 	c <- userProfile u'.Id;
-	genPage c u'
+	genPage c u' Profile
 
 and myPosts () =
     return <xml>
@@ -1408,56 +968,185 @@ and myPosts () =
 	
       </body>
     </xml>
+
+and postsPage page =
+    let
+	val itemsPage = 10
+	val offsetPage = page * itemsPage
+
+	fun calc_max_pages total_items itemsPage =
+	    ceil(float(total_items) / float(itemsPage))
+	    
+	fun make_first_link page =
+	    if page = 0 then
+		Inactive("First")
+	    else
+		Active("First", url (postsPage 0))
+		
+	fun make_previous_link page =
+	    if page = 0 then
+		Inactive("Previous")
+	    else
+		Active("Previous", url (postsPage (page - 1)))
+
+	fun make_next_link page total_items =
+	    let
+		val max_pages = calc_max_pages total_items itemsPage
+	    in
+		if page = max_pages - 1 then
+		    Inactive("Next")
+		else
+		    Active("Next", url (postsPage (page + 1)))	    
+	    end
+
+	fun make_last_link page total_items =
+	    let
+		val max_pages = calc_max_pages total_items itemsPage
+	    in
+		if page = max_pages - 1 then
+		    Inactive("Last")
+		else
+		    Active("Last", url (postsPage (max_pages - 1)))	    
+	    end
+
+	fun make_page_links' minPage maxPages expected =
+	    if expected = 0 then
+		[]
+	    else
+		if expected > 0 then
+		    if minPage > maxPages then
+			[]
+		    else
+			if minPage >= 0 then
+			    Active (show (minPage + 1), url (postsPage minPage)) :: make_page_links' (minPage + 1) maxPages (expected - 1)
+			else
+			    make_page_links' (minPage + 1) maxPages (expected - 1)
+		else
+		    []
+		    
+		    
+	fun make_page_links maxp page total_items =
+	    let
+		val max_pages = ceil(float(total_items) / float(itemsPage))
+		val current = Current (show (page + 1))
+	    in
+		if page = 0 then
+		    current :: (make_page_links' 1 max_pages (maxp + maxp))
+		else
+		    if page = max_pages - 1 then
+			List.append (make_page_links' (page - (maxp + maxp)) page (maxp + maxp)) (current :: [])
+		    else
+			List.append (make_page_links' (page - maxp) page maxp)
+				    (current :: make_page_links' (page + 1) max_pages maxp)
+	    end
+
+	fun make_link kind =
+	    case kind of
+		Active (text, u) => 
+		<xml>
+		  <li class="page-item">
+		    <a class="page-link" href={u}>{[text]}</a>
+		  </li>
+		</xml>
+	      | Current (text) =>
+		<xml>
+		  <li class="page-item bs-active">
+		    <span class="page-link">{[text]}</span>
+		  </li>
+		</xml>
+	      | Inactive (text) =>
+		<xml>
+		  <li class="page-item disabled">
+		    <span class="page-link">{[text]}</span>
+		  </li>
+		</xml>	    
+
+	fun make_links ls =
+	    case ls of
+		[] => <xml></xml>
+	      | h :: t =>
+		<xml>
+		  {make_link h}
+		  {make_links t}
+		</xml>
+
+		fun make_paginator total_items =
+		    if total_items > itemsPage then
+			<xml>
+			  <ul class="pagination pagination-sm">
+			    {make_link (make_first_link page)}
+			    {make_link (make_previous_link page)}
+			    {make_links (make_page_links 1 page total_items)}
+			    {make_link (make_next_link page total_items)}
+			    {make_link (make_last_link page total_items)}
+			  </ul>
+			</xml>
+		    else
+			<xml></xml>
+			
+    in
+	muserId <- currUserId ();
+	case muserId of
+	    None => return (error <xml>not authenticated</xml>)
+	  | Some userId =>
+	    cc <- oneRow (SELECT COUNT( * ) AS N FROM post WHERE post.UserId = {[userId]} );
+	    rows <- query (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
+			   FROM post
+			     JOIN position AS Position ON post.CurrentPositionId = Position.Id
+			     JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
+			   LIMIT {itemsPage} OFFSET {offsetPage} 
+			  )
+			  
+			  (fn data acc =>		      
+			      cid <- fresh;
+			      ch <- Room.subscribe data.Post.Room;
+			      (board, _, _) <- generate_board data.Position.Fen cid 20 False
+							      emptyTree
+							      (fn _ => return [])
+							      (fn s => doSpeak data.Post.Id s)
+							      emptyTopLevelHandler
+							      ch;
+			      return <xml>{acc}<tr>
+				<td>{[data.Post.Nam]}</td>
+				<td>{board}</td>
+				<td>
+				(*
+				<form>
+				 <submit action={postPage data.Post.Id} value="Enter"/>
+										     </form>*)
+				<form>
+				(*<submit class="btn btn-success" action={postPage2 data.Post.Id} value="Enter Room"/> *)
+				<a class="btn btn-success" link={postPage2 data.Post.Id ()}>Enter Room</a>
+				</form>
+				</td>
+			      </tr>
+			      </xml>)
+			  <xml></xml>;
+			  
+			  genPageU <xml>
+			    You have {[cc.N]} post{[if cc.N = 1 then
+							""
+						    else
+							"s"]}
+			    <a class="btn btn-primary" link={createPost ()}>Create</a>
+			    <div class="table-responsive">
+			      
+			      {make_paginator cc.N}
+			      
+			      <table class="bs-table table-striped table-sm">
+				<tr><th>Name</th><th>Board</th><th>Actions</th></tr>
+				{rows}
+			      </table>
+
+			      {make_paginator cc.N}
+			      
+			    </div>
+			  </xml> Posts
+    end
 		   
 and allPosts () =
-    muserId <- currUserId ();
-    case muserId of
-	None => return (error <xml>not authenticated</xml>)
-      | Some userId => 
-	rows <- query (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
-		       FROM post
-			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
-			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
-		       WHERE {eqNullable' (SQL post.ParentPostId) None} AND post.UserId = {[userId]}
-		      LIMIT 10 OFFSET 0)
-		      
-		      (fn data acc =>		      
-			  cid <- fresh;
-			  ch <- Room.subscribe data.Post.Room;
-			  (board, _, _) <- generate_board data.Position.Fen cid 20 False
-							  emptyTree
-							  (fn _ => return [])
-							  (fn s => doSpeak data.Post.Id s)
-							  emptyTopLevelHandler
-							  ch;
-			  return <xml>{acc}<tr>
-			    <td>{[data.Post.Nam]}</td>
-			    <td>{board}</td>
-			    <td>
-			    (*
-			    <form>
-			     <submit action={postPage data.Post.Id} value="Enter"/>
-										 </form>*)
-			    <form>
-			    (*<submit class="btn btn-success" action={postPage2 data.Post.Id} value="Enter Room"/> *)
-			    <a class="btn btn-success" link={postPage2 data.Post.Id ()}>Enter Room</a>
-			    </form>
-			    </td>
-			  </tr>
-			  </xml>)
-		      <xml></xml>;
-		      
-		      genPageU <xml>
-			<h3>Posts</h3>
-			<a class="btn btn-primary" link={createPost ()}>Create</a>
-			<div class="table-responsive">
-			  <table class="bs-table table-striped table-sm">
-			    <tr><th>Name</th><th>Board</th><th>Actions</th></tr>
-			    {rows}
-			  </table>
-			</div>
-		      </xml>
- 
+    postsPage 0
+        
 and createPost () =
     inPgn <- fresh;
     inNam <- fresh;
@@ -1481,7 +1170,7 @@ and createPost () =
 	<submit action={addPost} value="Create" />
 	
       </form>
-    </xml>
+    </xml> NMenu
 
 
 and addPost newPost =
@@ -1598,13 +1287,13 @@ and addPost newPost =
 
 	end
 
-and genPageU content =
+and genPageU content cur =
     u' <- currUser ();
     case u' of
 	None => redirect (url (index ()))
-      | Some u => genPage content u
+      | Some u => genPage content u cur
     
-and genPage content u =
+and genPage content u cur =
     return <xml>
       <head>
 	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
@@ -1613,7 +1302,7 @@ and genPage content u =
       </head>
       <body>
 	<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
-	  { generateMenu u }
+	  { generateMenu u cur }
 	</nav>
 	<main class="container">
 	  <div>
@@ -1623,13 +1312,29 @@ and genPage content u =
       </body>
     </xml>
 
-and generateMenu u =
+and generateMenu u current =
     <xml>
       <ul class="navbar-nav mr-auto">
-	<li class="nav-item"><a class="nav-link" link={index ()}>Home</a></li>
-	<li class="nav-item"><a class="nav-link" link={allPosts ()}>My Posts</a></li>
-	<li class="nav-item"><a class="nav-link" link={me ()}>My Profile</a></li>
-	<li class="nav-item"><a class="nav-link" link={invites ()}>My Invites</a></li>
+	<li class="nav-item">
+	  {case current of
+	       Home => <xml><span class="nav-link bs-active">Home</span></xml>
+	     | _ => <xml><a class="nav-link" link={index ()}>Home</a></xml> }
+	</li>
+	<li class="nav-item">
+	  {case current of
+	       Posts => <xml><span class="nav-link bs-active">Posts</span></xml>
+	     | _ => <xml><a class="nav-link" link={allPosts ()}>Posts</a></xml> }
+	</li>
+	<li class="nav-item">
+	  {case current of
+	       Profile => <xml><span class="nav-link bs-active">Profile</span></xml>
+	     | _ => <xml><a class="nav-link" link={me ()}>Profile</a></xml> }
+	</li>
+	<li class="nav-item">
+	  {case current of
+	       Invites => <xml><span class="nav-link bs-active">Invites</span></xml>
+	     | _ => <xml><a class="nav-link" link={invites ()}>Invites</a></xml> }
+	</li>
       </ul>
 
       <ul class="navbar-nav">
@@ -1649,7 +1354,7 @@ and index_on u =
       </head>
       <body>
 	<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
-	    { generateMenu u }
+	    { generateMenu u Home }
 	</nav>
 	<main>
 	  <div class="jumbotron">
