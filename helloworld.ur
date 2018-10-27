@@ -908,6 +908,7 @@ and testUpload () =
 
 and userProfile id =
     me <- currUserId ();
+    row <- oneRow (SELECT user.Id, user.Nam FROM user WHERE user.Id = {[id]});
     case me of
 	None => error <xml>Not authenticated</xml>
       | Some u' =>
@@ -918,7 +919,7 @@ and userProfile id =
 	      
 		<h2>{[case isMe of
 			  True => "My Profile"
-			| False => "User " ^ (show id)]}</h2>
+			| False => row.User.Nam]}</h2>
 
 		Username: ... <br />
 		
@@ -1089,11 +1090,12 @@ and postsPage page =
 	case muserId of
 	    None => return (error <xml>not authenticated</xml>)
 	  | Some userId =>
-	    cc <- oneRow (SELECT COUNT( * ) AS N FROM post WHERE post.UserId = {[userId]} );
+	    cc <- oneRow (SELECT COUNT( * ) AS N FROM post WHERE {eqNullable' (SQL post.ParentPostId) None} AND post.UserId = {[userId]} );
 	    rows <- query (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
 			   FROM post
 			     JOIN position AS Position ON post.CurrentPositionId = Position.Id
 			     JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
+			   WHERE {eqNullable' (SQL post.ParentPostId) None} AND post.UserId = {[userId]}
 			   LIMIT {itemsPage} OFFSET {offsetPage} 
 			  )
 			  
