@@ -1014,7 +1014,7 @@ and postsPage page =
 		[]
 	    else
 		if expected > 0 then
-		    if minPage > maxPages then
+		    if minPage >= maxPages then
 			[]
 		    else
 			if minPage >= 0 then
@@ -1027,7 +1027,7 @@ and postsPage page =
 		    
 	fun make_page_links maxp page total_items =
 	    let
-		val max_pages = ceil(float(total_items) / float(itemsPage))
+		val max_pages = calc_max_pages total_items itemsPage
 		val current = Current (show (page + 1))
 	    in
 		if page = 0 then
