@@ -10,6 +10,23 @@ file /WhiteRook.svg fonts/merida/svg/WhiteRook.svg
 file /WhiteBishop.svg fonts/merida/svg/WhiteBishop.svg
 file /WhiteKnight.svg fonts/merida/svg/WhiteKnight.svg
 file /WhitePawn.svg fonts/merida/svg/WhitePawn.svg
+file /fuhyo.svg fonts/shogi/fuhyo.svg
+file /kakugyo.svg fonts/shogi/kakugyo.svg
+file /hisha.svg fonts/shogi/hisha.svg
+file /ginsho.svg fonts/shogi/ginsho.svg
+file /gyokusho.svg fonts/shogi/gyokusho.svg
+file /keima.svg fonts/shogi/keima.svg
+file /kinsho.svg fonts/shogi/kinsho.svg
+file /kyosha.svg fonts/shogi/kyosha.svg
+file /narigin.svg fonts/shogi/narigin.svg
+file /narikei.svg fonts/shogi/narikei.svg
+file /narikyo.svg fonts/shogi/narikyo.svg
+file /osho.svg fonts/shogi/osho.svg
+file /ryuma.svg fonts/shogi/ryuma.svg
+file /ryuo.svg fonts/shogi/ryuo.svg
+file /tokin.svg fonts/shogi/tokin.svg
+file /w.svg fonts/weiqi/w.svg
+file /b.svg fonts/weiqi/b.svg
 library ../urweb-base64/lib
 library ../urweb-canvas/src/canvas
 library ../urweb-filetext/filetext_FFI
