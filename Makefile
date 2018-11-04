@@ -5,6 +5,9 @@ helloworldLone.exe: *.ur *.urs *.urp
 fcgi: *.ur *.urs *.urp
 	urweb -protocol fastcgi -dbms postgres helloworld
 
+static: *.ur *.urs *.urp
+	urweb -static -protocol fastcgi -dbms postgres helloworld
+
 dumpS:
 	urweb -dumpSource -dbms sqlite -db helloworld.db helloworld 2> dumpSource.txt
 
