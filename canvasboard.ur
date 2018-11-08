@@ -130,7 +130,7 @@ fun addToMtree p mtreeSrc =
 	    _ <- addToMtreeL p ls;
 	    return ()
 		
-fun generate_board testFen c size editable getTree getComments doSpeak topLevelHandler ch =
+fun generate_board testFen c size editable getTree getComments doSpeak topLevelHandler mch =
     rctx <- source None;
 (*    pgnstate <- source None;*)
     renderstate <- source None;
@@ -639,21 +639,24 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 			    | None => return ())
 		      | _ =>
 			topLevelHandler s
-			
-		and listener () =
+
+		and mlistener _ =
+		    case mch of
+			None => return ()
+		      | Some ch => spawn (listener ch)
+				   
+		and listener ch =
 		    s <- recv ch;
 		    handle_boardmsg s;
-		    listener ()
+		    listener ch
 		    
 (**)
 
 	    in
 		set renderstate (Some (fen_to_board testFen));
 		requestAnimationFrame2 drawBoard3;
-		
-		spawn (listener ());
-		return <xml>		  
-		</xml>
+		mlistener ();		
+		return <xml></xml>
 	    end	    
 	    
 

@@ -45,7 +45,7 @@ val generate_board : string ->
 		     (unit -> transaction (list string)) ->
 		     (serverboardmsg -> transaction unit) ->
 		     (boardmsg -> transaction unit) ->
-		     channel boardmsg ->
+		     option (channel boardmsg) ->
 		     transaction (xbody * xbody * xbody)
 
 val state_to_board : gamestate -> boardstate

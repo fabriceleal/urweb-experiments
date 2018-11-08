@@ -480,7 +480,7 @@ and postPage2 id () =
 							 (fn s => doSpeak current.Post.Id s)
 							 (fn c => case c of
 								      ChangeName t => set pname t
-								    | _ => return ()) ch;
+								    | _ => return ()) (Some ch);
     commenttxt <- source "";
     newpostname <- source "";
 
@@ -1110,7 +1110,7 @@ and postsPage page =
 							      (fn _ => return [])
 							      (fn s => doSpeak data.Post.Id s)
 							      emptyTopLevelHandler
-							      ch;
+							      (Some ch);
 			      return <xml>{acc}<tr>
 				<td>{[data.Post.Nam]}</td>
 				<td>{board}</td>
@@ -1700,7 +1700,15 @@ and index () =
 
 and chess () =
     u <- currUser ();
-    genPageT (fn _ => return <xml></xml>) u ChessPage   
+    genPageT (fn _ =>
+		 cid <- fresh;
+		 (board, _, _) <- generate_board startingFen cid 67 True
+						 emptyTree
+						 (fn _ => return [])
+						 (fn s => return ())
+						 emptyTopLevelHandler
+						 None;
+		 return <xml>{board}</xml>) u ChessPage   
     
 and shogi () =
     u <- currUser ();
