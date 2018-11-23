@@ -37,6 +37,8 @@ val emptyTopLevelHandler : boardmsg -> transaction unit
 
 val emptyTree : unit -> transaction pgnRoot
 
+val emptyOnGameState : gamestate -> transaction unit
+
 val generate_board : string ->
 		     id ->
 		     int ->
@@ -45,8 +47,9 @@ val generate_board : string ->
 		     (unit -> transaction (list string)) ->
 		     (serverboardmsg -> transaction unit) ->
 		     (boardmsg -> transaction unit) ->
+		     (gamestate -> transaction unit) ->
 		     option (channel boardmsg) ->
-		     transaction (xbody * xbody * xbody)
+		     transaction (xbody * xbody * xbody * (unit -> transaction (option gamestate)))
 
 val state_to_board : gamestate -> boardstate
 

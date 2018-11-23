@@ -45,7 +45,10 @@ fun fen_to_board fen =
     in
 	state_to_board state
     end
-    
+
+fun board_to_state (board : boardstate) : gamestate =
+    board.Full
+
 (*
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
  *)
@@ -55,6 +58,9 @@ fun emptyTopLevelHandler (msg : boardmsg) =
 
 fun emptyTree _ =
     return (Root (0, "", [], []))
+
+fun emptyOnGameState _ =
+    return ()
 
 (* TODO this structure will need to know more things to render the tree properly. 
 some info comes from the parent in the old renderPgn functions! *)
@@ -130,7 +136,7 @@ fun addToMtree p mtreeSrc =
 	    _ <- addToMtreeL p ls;
 	    return ()
 		
-fun generate_board testFen c size editable getTree getComments doSpeak topLevelHandler mch =
+fun generate_board testFen c size editable getTree getComments doSpeak topLevelHandler onGameState mch =
     rctx <- source None;
 (*    pgnstate <- source None;*)
     renderstate <- source None;
@@ -300,7 +306,8 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 			      Prom = None}
 		in
 		    set renderstate (Some st);
-		    doSpeak (SMovePiece (move.Src, move.Dest, move.Prom)); 
+		    doSpeak (SMovePiece (move.Src, move.Dest, move.Prom));
+		    onGameState newState;
 		    return ()
 		end
 		
@@ -458,8 +465,6 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 			    WK= wk, WQ= wq, WR = wr, WB = wb, WN = wn, WP = wp,
 			    C2D= ctx});
 	    
-	    debug "loaded";
-
 	    let
 		
 
@@ -632,8 +637,7 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 					       DragPiece = None,
 					       Prom = None
 					      });
-			      (* x <- rpc (getTree ());
-			       set pgnstate (Some x); *)
+			      onGameState p.State;
 			      addToMtree p mtreeSrc;
 			      return () 
 			    | None => return ())
@@ -651,9 +655,10 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 		    listener ch
 		    
 (**)
-
+		val startPos = fen_to_board testFen
 	    in
-		set renderstate (Some (fen_to_board testFen));
+		set renderstate (Some startPos);
+		onGameState startPos.Full;
 		requestAnimationFrame2 drawBoard3;
 		mlistener ();		
 		return <xml></xml>
@@ -676,16 +681,16 @@ fun generate_board testFen c size editable getTree getComments doSpeak topLevelH
 	       <active code={init ()}>
 	       </active>
 	     </xml>),
-	<xml> (*
-	  <dyn signal={m <- signal pgnstate; renderPgn m } />
-
-	  <active code={initTree ()}>
-</active> *)
-	 <dyn signal={m <- signal mtreeSrc; renderPgn m} />
-	   
+	<xml>
+	 <dyn signal={m <- signal mtreeSrc; renderPgn m} />	   
 	</xml>,
 	<xml>
 	  <dyn signal={m <- signal commentsstate; renderComments m } />
-	</xml>)
+	</xml>,
+     fn _ =>
+	st <- get renderstate;
+	return (case st of
+		    None => None
+		  | Some st' => Some (board_to_state st')))
     end
     

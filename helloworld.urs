@@ -43,7 +43,7 @@ type lsTimecontrol = list timecontrol
 			 
 val clock : lsTimecontrol -> transaction page
 
-val chess : unit -> transaction page
+val chess : string -> transaction page
 		    
 val shogi : unit -> transaction page
 

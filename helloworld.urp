@@ -59,9 +59,12 @@ $/string
 $/list
 ../urweb-nregex/nregex
 ../urweb-nregex/nregexpgn
+game
 sharedboard
 chess
+shogi
 canvasboard
+shogicanvasboard
 pgn
 pgnparse
 buffer
