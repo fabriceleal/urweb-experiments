@@ -3,7 +3,6 @@ open Canvas_FFI
 open Chess
 open Bootstrap4
 open Pgnparse
-open Canvasboard
 open Nmarkdown
 open Game
      
@@ -351,7 +350,7 @@ fun speak id line =
 		     
 		     room <- getRoom id;
 		     
-		     Room.send room (Position {State = (fen_to_state newFen),
+		     Room.send room (MPosition {State = (fen_to_state newFen),
 					       Old = state, Id = idP,
 					       Move = newMove, MoveAlg = newMoveAlg,
 					       Previous = row.Post.CurrentPositionId,
@@ -403,27 +402,27 @@ fun speak id line =
 	    
 	    dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
 	    room <- getRoom id;
-	    Room.send room (Position {State = (fen_to_state row2.Position.Fen),
+	    Room.send room (MPosition {State = (fen_to_state row2.Position.Fen),
 				      Old = (fen_to_state row3.Position.Fen), Id = idP,
 				      Move = optS2S row2.Position.Move, MoveAlg = optS2S row2.Position.MoveAlg,
 				      Previous = optI2I row2.Position.PreviousPositionId, Highlight = []})
 	    
 	  | SHighlight sq =>
 	    room <- getRoom id;
-	    Room.send room (Highlight sq)
+	    Room.send room (MHighlight sq)
 	  | SComment txt =>
 	    idC <- nextval commentSeq;
 	    t <- now;
 	    dml (INSERT INTO comment (Id, PositionId, Content, UserId, Sent) VALUES({[idC]}, {[id]}, {[txt]}, {[userId]}, {[t]} ));
 	    room <- getRoom id;
-	    Room.send room (Comment txt)
+	    Room.send room (MComment txt)
 	  | SNewPost (optP, txt) =>
 	    addPostF userId optP txt;
 	    return ()
 	  | SChangeName (id, txt) =>
 	    dml (UPDATE post SET Nam = {[txt]} WHERE Id = {[id]});
 	    room <- getRoom id;
-	    Room.send room (ChangeName txt)
+	    Room.send room (MChangeName txt)
 
 fun getTree id =
     treeAtOnce id
@@ -480,7 +479,7 @@ and postPage2 id () =
 							 (fn _ => getComments current.Post.Id )
 							 (fn s => doSpeak current.Post.Id s)
 							 (fn c => case c of
-								      ChangeName t => set pname t
+								      MChangeName t => set pname t
 								    | _ => return ())
 							 emptyOnGameState
 							 (Some ch);
@@ -1310,6 +1309,7 @@ and genPageT contentT u cur =
 	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
 	<link rel="stylesheet" type="text/css" href="/exp.css" />
 	<link rel="stylesheet" type="text/css" href="/bodyn.css" />
+	{ generateTitle cur }
       </head>
       <body>
 	<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
@@ -1321,6 +1321,11 @@ and genPageT contentT u cur =
 	  </div>
 	</main>
       </body>
+    </xml>
+
+and generateTitle _ =
+    <xml>
+      <title>Turtle Corner</title>
     </xml>
 
 and generateMenu u current =
@@ -1387,6 +1392,7 @@ and index_on u =
 	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
 	<link rel="stylesheet" type="text/css" href="/exp.css" />
 	<link rel="stylesheet" type="text/css" href="/bodyj.css" />
+	{ generateTitle Home }
       </head>
       <body>
 	<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">

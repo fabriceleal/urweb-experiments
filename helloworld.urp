@@ -50,7 +50,7 @@ file /bodyj.css rsrc/css/bodyj.css
 file /auth.css rsrc/css/auth.css
 file /exp.css rsrc/css/exp.css
 file /clock.css rsrc/css/clock.css
-rewrite style Canvasboard/* [-]
+rewrite style Chess/* [-]
 rewrite style Helloworld/* [-]
 file /bootstrap.min.css rsrc/css/bootstrap.min.css
 minHeap 5120000
@@ -63,8 +63,6 @@ game
 sharedboard
 chess
 shogi
-canvasboard
-shogicanvasboard
 pgn
 pgnparse
 buffer

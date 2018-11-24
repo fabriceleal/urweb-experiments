@@ -93,3 +93,63 @@ val castleAlgebraicToMove :  gamestate -> string -> option move
 val pieceDesambAlgebraicToMove :  gamestate -> string -> option move
 						    
 						   
+
+
+type position = { Id: int, Previous : int, State: gamestate, Old: gamestate, Move : string, MoveAlg: string, Highlight: list square }
+		
+datatype boardmsg =
+	 MHighlight of square
+       | MPosition of position
+       | MComment of string
+       | MChangeName of string
+			
+type rawPoint = { RawX: int, RawY : int}
+
+type draggingPiece = { Src: rawPoint, Current: rawPoint, Piece: piece }
+
+type promstate = { Src: square, Dest: square }
+	      
+type boardstate = { Highlight: list square, Pieces: list piecerec, DragPiece: option draggingPiece,
+		    Full : gamestate, Prom: option promstate  }
+
+		  
+datatype serverboardmsg =
+	 SMovePiece of square * square * option kind
+       | SHighlight of square
+       | SBack 
+       | SForward
+       | SPosition of int
+       | SComment of string
+       | SNewPost of option int * string
+       | SChangeName of int * string
+
+val emptyTopLevelHandler : boardmsg -> transaction unit
+
+val emptyTree : unit -> transaction pgnRoot
+
+val emptyOnGameState : gamestate -> transaction unit
+
+val generate_board : string ->
+		     id ->
+		     int ->
+		     bool ->
+		     (unit -> transaction pgnRoot) ->
+		     (unit -> transaction (list string)) ->
+		     (serverboardmsg -> transaction unit) ->
+		     (boardmsg -> transaction unit) ->
+		     (gamestate -> transaction unit) ->
+		     option (channel boardmsg) ->
+		     transaction (xbody * xbody * xbody * (unit -> transaction (option gamestate)))
+
+val state_to_board : gamestate -> boardstate
+
+val fen_to_board : string -> boardstate
+
+datatype mutableTree =
+	 Move of {Id:int, Move: string, MoveAlg: string, Position: gamestate, Children: source (list mutableTree)}
+		 
+datatype mutableTreeRoot =
+	 StartP of {Id:int, Position:gamestate, Children: source (list mutableTree) }
+
+val treeToMtree : pgnRoot -> transaction mutableTreeRoot
+			     
