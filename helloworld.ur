@@ -24,6 +24,11 @@ structure Room = Sharedboard.Make(struct
 				      type t = boardmsg
 				  end)
 
+fun eqNullable2 [tables ::: {{Type}}] [agg ::: {{Type}}] [exps ::: {Type}]
+    [t ::: Type] (_ : sql_injectable (option t))
+    (e1 : sql_exp tables agg exps t)
+    (e2 : sql_exp tables agg exps (option t)) =
+    sql_binary sql_eql e1 e2
 
 		 
 sequence postSeq
@@ -109,7 +114,8 @@ fun insertUserWithId userid nam passS =
 (*	debug ("saltEncoded:" ^ saltEncoded);*)
 	dml (INSERT INTO user (Id, Nam, Pass, Salt) VALUES ({[userid]}, {[nam]}, {[pass]}, {[saltEncoded]}))
     end
-      
+
+
 task initialize = fn () =>
     b <- nonempty rootAdmin;
     if b then
@@ -145,6 +151,18 @@ fun currUserId () =
 	None => return None
       | Some r => return (Some r.Id)
 
+fun userIsAdmin id =
+    row <- oneRow (SELECT COUNT( * ) AS N FROM rootAdmin WHERE rootAdmin.Id = {[id]});
+    return (row.N > 0)
+		  
+fun currUserIsAdmin () =
+    ro <- getCookie login;
+    case ro of
+	None => return False
+      | Some r =>
+	userIsAdmin r.Id
+
+
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
  
 val light = make_rgba 239 238 240 1.0
@@ -172,6 +190,7 @@ datatype menuKind =
        | WeiqiPage
        | Posts
        | Profile
+       | AllUsers
        | Invites
      
 fun getComments (id : int) : transaction (list string) =
@@ -188,6 +207,9 @@ fun optI2I o =
     case o of
 	None => 0
       | Some i => i
+
+fun optI [t] (o : t) : option t =
+    Some o
 		  
 fun tree3 (root : option int) parentFen =
     let
@@ -721,7 +743,39 @@ and generateInvite r =
 		
 		<a link={createAccount inv.Invite.Code}>Link</a>
 	    </xml> u NMenu
-    
+
+and allTurtles () =
+    u <- currUser ();
+    case u of
+	None => redirect (url (index ()))
+      | Some u' =>
+	rows <- query (SELECT User.Id, User.Nam
+		       FROM user AS User 
+		      )
+		      (fn data acc =>
+			  inviter <- oneOrNoRows (SELECT user.Id, user.Nam
+						  FROM invite JOIN user ON invite.UserId = user.Id
+						  WHERE invite.InvitedId = {[Some data.User.Id]});
+			  return <xml>
+			    {acc}
+			    <tr>
+			      <td><a link={turtle data.User.Id}>{[data.User.Nam]}</a></td>
+			      <td>{case inviter of
+				       None => <xml></xml>
+				     | Some r => <xml><a link={turtle r.User.Id}>{[r.User.Nam]}</a></xml>}</td>
+			      <td><a link={postsPage data.User.Id 0}>Posts</a></td>
+			    </tr>			    
+			    </xml>) <xml></xml>;
+		      genPage <xml>
+			<div class="table-responsive">
+			  <table class="bs-table table-striped table-sm">
+
+			    <tr><th>Name</th><th>Inviter</th><th>Posts</th></tr>
+			    {rows}
+			  </table>
+			</div>
+		      </xml> u AllUsers
+		
 and invites () =
     u <- currUser ();
     case u of
@@ -909,8 +963,20 @@ and testUpload () =
 	      <submit action={handleTestUpload} value="upload" />
 	    </form>
 	  </body>
-	  </xml>
-
+	</xml>
+	
+and profileAdminSection id =
+    me <- currUserIsAdmin ();
+    cc <- oneRow (SELECT COUNT( * ) AS N FROM post WHERE {eqNullable' (SQL post.ParentPostId) None} AND post.UserId = {[id]} );
+    if me then
+	return <xml>
+	  <h3>Admin section</h3>
+	  <div>{[show cc.N]} post{[if cc.N = 1 then "" else "s"]}</div>
+	  
+	</xml>
+    else
+	return <xml></xml>
+	
 and userProfile id =
     me <- currUserId ();
     row <- oneRow (SELECT user.Id, user.Nam FROM user WHERE user.Id = {[id]});
@@ -920,40 +986,29 @@ and userProfile id =
 	let
 	    val isMe = u' = id
 	in
+	    admSection <- profileAdminSection id;
+	    isAdmin <- userIsAdmin id;
 	    return <xml>
 	      
 		<h2>{[case isMe of
-			  True => "My Profile"
+			  True => row.User.Nam ^ " (Me)"
 			| False => row.User.Nam]}</h2>
 
-		Username: ... <br />
+		{if isAdmin then
+		     <xml><div><b>Administrator</b></div></xml>
+		 else
+		     <xml></xml>}
 		
 		Change password ...
 
 		Describe yourself ...
 
-		My Posts ...
+		
+
+		{admSection}
 		
 	    </xml>
 	end
-
-and allTurtles () =
-     rows <- query (SELECT user.Nam FROM user)		
-		  (fn data acc =>
-		      return <xml>{acc}
-			<tr>
-			  <td>{[data.User.Nam]}</td>
-			</tr>
-		      </xml>)
-		  <xml/>;    
-    return <xml>
-      <body>
-      <table border=1>
-	<tr><th>Name</th></tr>
-	{rows}
-      </table>
-      </body>
-    </xml>
 	
 and turtle id =    
     c <- userProfile id;
@@ -975,7 +1030,7 @@ and myPosts () =
       </body>
     </xml>
 
-and postsPage page =
+and pageableView page header sql_itemscounter generate_rows mkUrl =
     let
 	val itemsPage = 10
 	val offsetPage = page * itemsPage
@@ -987,14 +1042,14 @@ and postsPage page =
 	    if page = 0 then
 		Inactive("First")
 	    else
-		Active("First", url (postsPage 0))
+		Active("First", mkUrl 0) (*url (postsPage 0) *)
 		
 	fun make_previous_link page =
 	    if page = 0 then
 		Inactive("Previous")
 	    else
-		Active("Previous", url (postsPage (page - 1)))
-
+		Active("Previous", mkUrl (page - 1))
+		
 	fun make_next_link page total_items =
 	    let
 		val max_pages = calc_max_pages total_items itemsPage
@@ -1002,7 +1057,7 @@ and postsPage page =
 		if page = max_pages - 1 then
 		    Inactive("Next")
 		else
-		    Active("Next", url (postsPage (page + 1)))	    
+		    Active("Next", mkUrl (page + 1))
 	    end
 
 	fun make_last_link page total_items =
@@ -1012,7 +1067,7 @@ and postsPage page =
 		if page = max_pages - 1 then
 		    Inactive("Last")
 		else
-		    Active("Last", url (postsPage (max_pages - 1)))	    
+		    Active("Last", mkUrl (max_pages - 1))	    
 	    end
 
 	fun make_page_links' minPage maxPages expected =
@@ -1024,7 +1079,7 @@ and postsPage page =
 			[]
 		    else
 			if minPage >= 0 then
-			    Active (show (minPage + 1), url (postsPage minPage)) :: make_page_links' (minPage + 1) maxPages (expected - 1)
+			    Active (show (minPage + 1), mkUrl minPage) :: make_page_links' (minPage + 1) maxPages (expected - 1)
 			else
 			    make_page_links' (minPage + 1) maxPages (expected - 1)
 		else
@@ -1067,94 +1122,110 @@ and postsPage page =
 		  </li>
 		</xml>	    
 
-	fun make_links ls =
-	    case ls of
-		[] => <xml></xml>
-	      | h :: t =>
-		<xml>
-		  {make_link h}
-		  {make_links t}
-		</xml>
-
-		fun make_paginator total_items =
-		    if total_items > itemsPage then
+		fun make_links ls =
+		    case ls of
+			[] => <xml></xml>
+		      | h :: t =>
 			<xml>
-			  <ul class="pagination pagination-sm">
-			    {make_link (make_first_link page)}
-			    {make_link (make_previous_link page)}
-			    {make_links (make_page_links 1 page total_items)}
-			    {make_link (make_next_link page total_items)}
-			    {make_link (make_last_link page total_items)}
-			  </ul>
+			  {make_link h}
+			  {make_links t}
 			</xml>
-		    else
-			<xml></xml>
-			
-    in
-	muserId <- currUserId ();
-	case muserId of
-	    None => return (error <xml>not authenticated</xml>)
-	  | Some userId =>
-	    cc <- oneRow (SELECT COUNT( * ) AS N FROM post WHERE {eqNullable' (SQL post.ParentPostId) None} AND post.UserId = {[userId]} );
-	    rows <- query (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
-			   FROM post
-			     JOIN position AS Position ON post.CurrentPositionId = Position.Id
-			     JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
-			   WHERE {eqNullable' (SQL post.ParentPostId) None} AND post.UserId = {[userId]}
-			   LIMIT {itemsPage} OFFSET {offsetPage} 
-			  )
-			  
-			  (fn data acc =>		      
-			      cid <- fresh;
-			      ch <- Room.subscribe data.Post.Room;
-			      (board, _, _, _) <- generate_board data.Position.Fen cid 20 False
-							      emptyTree
-							      (fn _ => return [])
-							      (fn s => doSpeak data.Post.Id s)
-							      emptyTopLevelHandler
-							      emptyOnGameState
-							      (Some ch);
-			      return <xml>{acc}<tr>
-				<td>{[data.Post.Nam]}</td>
-				<td>{board}</td>
-				<td>
-				(*
-				<form>
-				 <submit action={postPage data.Post.Id} value="Enter"/>
-										     </form>*)
-				<form>
-				(*<submit class="btn btn-success" action={postPage2 data.Post.Id} value="Enter Room"/> *)
-				<a class="btn btn-success" link={postPage2 data.Post.Id ()}>Enter Room</a>
-				</form>
-				</td>
-			      </tr>
-			      </xml>)
-			  <xml></xml>;
-			  
-			  genPageU <xml>
-			    You have {[cc.N]} post{[if cc.N = 1 then
-							""
-						    else
-							"s"]}
-			    <a class="btn btn-primary" link={createPost ()}>Create</a>
-			    <div class="table-responsive">
-			      
-			      {make_paginator cc.N}
-			      
-			      <table class="bs-table table-striped table-sm">
-				<tr><th>Name</th><th>Board</th><th>Actions</th></tr>
-				{rows}
-			      </table>
 
-			      {make_paginator cc.N}
-			      
-			    </div>
-			  </xml> Posts
+			fun make_paginator total_items =
+			    if total_items > itemsPage then
+				<xml>
+				  <ul class="pagination pagination-sm">
+				    {make_link (make_first_link page)}
+				    {make_link (make_previous_link page)}
+				    {make_links (make_page_links 1 page total_items)}
+				    {make_link (make_next_link page total_items)}
+				    {make_link (make_last_link page total_items)}
+				  </ul>
+				</xml>
+			    else
+				<xml></xml>
+				
+    in
+	    cc <- oneRow sql_itemscounter;
+	    rows <- generate_rows itemsPage offsetPage;
+	    
+	    return (<xml>
+	      
+	      <div class="table-responsive">
+		
+		{make_paginator cc.N}
+		
+		<table class="bs-table table-striped table-sm">
+		  {header}
+		  {rows}
+		</table>
+
+		{make_paginator cc.N}
+		
+	      </div>
+	    </xml>, cc)
     end
-		   
+
+and pageablePosts userId page =
+    pageableView page <xml><tr><th>Name</th><th>Board</th><th>Actions</th></tr></xml>
+		 (SELECT COUNT( * ) AS N
+		  FROM post WHERE {eqNullable' (SQL post.ParentPostId) None} AND post.UserId = {[userId]} )
+		 (fn itemsPage offsetPage => query (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
+						    FROM post
+						      JOIN position AS Position ON post.CurrentPositionId = Position.Id
+						      JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
+						    WHERE {eqNullable' (SQL post.ParentPostId) None} AND post.UserId = {[userId]}
+									LIMIT {itemsPage} OFFSET {offsetPage} 
+						   )
+						   
+						   (fn data acc =>		      
+						       cid <- fresh;
+						       ch <- Room.subscribe data.Post.Room;
+						       (board, _, _, _) <- generate_board data.Position.Fen cid 20 False
+											  emptyTree
+											  (fn _ => return [])
+											  (fn s => doSpeak data.Post.Id s)
+											  emptyTopLevelHandler
+											  emptyOnGameState
+											  (Some ch);
+						       return <xml>{acc}<tr>
+							 <td>{[data.Post.Nam]}</td>
+							 <td>{board}</td>
+							 <td>
+							   <form>
+							     <a class="btn btn-success" link={postPage2 data.Post.Id ()}>Enter Room</a>
+							   </form>
+							 </td>
+						       </tr>
+						       </xml>)
+						   <xml></xml>)
+		 (fn page => url (postsPage userId page))
+    
+and postsPage userId page =
+    muserId <- currUserId ();
+    case muserId of
+	None => return (error <xml>not authenticated</xml>)
+      | Some _ =>
+	(widget, cc) <- pageablePosts userId page;
+	genPageU <xml>
+	  You have {[cc.N]} post{[if cc.N = 1 then
+				      ""
+				  else
+				      "s"]}
+	  
+	  <a class="btn btn-primary" link={createPost ()}>Create</a>
+
+	  {widget}
+	</xml> Posts
+	
+    
 and allPosts () =
-    postsPage 0
-        
+    muserId <- currUserId ();
+    case muserId of
+	None => return (error <xml>not authenticated</xml>)
+      | Some userId =>
+	postsPage userId 0
+
 and createPost () =
     inPgn <- fresh;
     inNam <- fresh;
@@ -1363,6 +1434,11 @@ and generateMenu u current =
 		 {case current of
 		      Profile => <xml><span class="nav-link bs-active">Profile</span></xml>
 		    | _ => <xml><a class="nav-link" link={me ()}>Profile</a></xml> }
+	       </li>
+	       <li class="nav-item">
+		 {case current of
+		      AllUsers => <xml><span class="nav-link bs-active">Turtles</span></xml>
+		    | _ => <xml><a class="nav-link" link={allTurtles ()}>Turtles</a></xml> }
 	       </li>
 	       <li class="nav-item">
 		 {case current of

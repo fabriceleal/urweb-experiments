@@ -1,5 +1,6 @@
 open Canvas_FFI
-
+open Chess
+     
 signature GAME = sig
     val name : string
     type position
@@ -8,10 +9,10 @@ signature GAME = sig
 end
 
 			 
-structure Chess : GAME = struct
+structure SChess : GAME = struct
     val name = "Chess"
-    type position = { A: int }
-    fun startingPosition _ = {A = 1}
+    type position = Chess.gamestate
+    fun startingPosition _ = Chess.fen_to_state Chess.startingFen
     fun editor _ = return <xml></xml>
 end
 		 
