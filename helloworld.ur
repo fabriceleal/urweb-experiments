@@ -23,13 +23,13 @@ style cmd_button
 structure Room = Sharedboard.Make(struct
 				      type t = boardmsg
 				  end)
-
+(*
 fun eqNullable2 [tables ::: {{Type}}] [agg ::: {{Type}}] [exps ::: {Type}]
     [t ::: Type] (_ : sql_injectable (option t))
     (e1 : sql_exp tables agg exps t)
     (e2 : sql_exp tables agg exps (option t)) =
     sql_binary sql_eql e1 e2
-
+*)
 		 
 sequence postSeq
 sequence positionSeq
@@ -104,17 +104,23 @@ table rootAdmin : { Id : userId }
 		      PRIMARY KEY Id,
       CONSTRAINT Id FOREIGN KEY Id REFERENCES user(Id)
 
-fun insertUserWithId userid nam passS =
+fun cryptPass passS =
     salt <- Random.bytes 64;
     let
 	val saltEncoded = Base64_FFI.encode(salt)
 	val passraw = passS ^ saltEncoded
 	val pass = Hash.sha512 (textBlob passraw)
     in
-(*	debug ("saltEncoded:" ^ saltEncoded);*)
-	dml (INSERT INTO user (Id, Nam, Pass, Salt) VALUES ({[userid]}, {[nam]}, {[pass]}, {[saltEncoded]}))
+	return (pass, saltEncoded)
     end
+      
+fun insertUserWithId userid nam passS =
+    (pass, saltEncoded) <- cryptPass passS;
+    dml (INSERT INTO user (Id, Nam, Pass, Salt) VALUES ({[userid]}, {[nam]}, {[pass]}, {[saltEncoded]}))
 
+fun updateUserWithPass userid passS =
+    (pass, saltEncoded) <- cryptPass passS;
+    dml (UPDATE user SET Pass = {[pass]}, Salt = {[saltEncoded]} WHERE Id = {[userid]})
 
 task initialize = fn () =>
     b <- nonempty rootAdmin;
@@ -578,21 +584,46 @@ and downloadPost id =
 	returnBlob (textBlob (renderPgn tree)) (blessMime "application/octet-stream")
     end
 
+and logonUserRow r' passw =
+    let
+	val hashed = Hash.sha512(textBlob(passw ^ r'.User.Salt))
+    in
+	hashed = r'.User.Pass
+    end
+
 and logon r =    
     ro <- oneOrNoRows (SELECT user.Id, user.Pass, user.Salt FROM user WHERE user.Nam = {[r.Nam]});
     case ro of
 	None => error <xml>Wrong user or pass!</xml>
       | Some r' =>
-	let
-	    val hashed = Hash.sha512(textBlob(r.Pass ^ r'.User.Salt))
-	in
-	    if hashed = r'.User.Pass then
-		setCookie login {Value = {Id=r'.User.Id}, Secure=False, Expires = None};
-		redirect (url (index ()))
-	    else
-		error <xml>Wrong user or pass!</xml>
-	end
+	if (logonUserRow r' r.Pass) then
+	    setCookie login {Value = {Id=r'.User.Id}, Secure=False, Expires = None};
+	    redirect (url (index ()))
+	else
+	    redirect (url (index_login "Wrong user or pass!"))
 	
+and index_login err =
+    userid <- fresh;
+    passid <- fresh;
+    return <xml>
+      <head>
+	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
+	<link rel="stylesheet" type="text/css" href="/auth.css" />
+      </head>
+      <body class="text-center">			
+	<form class="form-signin">
+	  {if err <> "" then
+	     <xml><div class="row">Error: {[err]}</div></xml>
+	 else
+	     <xml></xml>}
+	  <label class="sr-only" for={userid}>User</label>
+	  <textbox{#Nam} id={userid} class="form-control form-signin-sep" placeholder="User" />
+	  <label class="sr-only" for={passid}>Pass</label>
+	  <password{#Pass} id={passid} class="form-control form-signin-sep" placeholder="Password" />
+	  <submit class="btn btn-lg btn-primary btn-block" action={logon} value="Sign In" />
+	</form>
+      </body>
+    </xml>
 
 and logoff () =
     clearCookie login;
@@ -638,6 +669,28 @@ and validateNewUser u =
 	    return (Some "password doesnt match policy: at least 6 characters long")
     else
 	return (Some "username doesnt match policy: at least 3 characters long, using only letters numbers and _ ")
+
+and validateAndUpdatePass u =
+    muserId <- currUserId ();
+    case muserId of
+	None => return (Some "session expired")
+      | Some userId =>
+	ro <- oneOrNoRows (SELECT user.Id, user.Pass, user.Salt FROM user WHERE user.Id = {[userId]});
+	(case ro of
+	    None => return (Some "user not found?!")
+	  | Some r' =>
+	    if (logonUserRow r' u.OldPass) then
+		if (validatePasswordPolicy u.NewPass) then
+		    (case (u.NewPass = u.ConfPass) of
+			True => 
+			updateUserWithPass userId u.NewPass;
+			return None
+		      | False => 
+			return (Some "passwords font match"))
+		else
+		    return (Some "password doesnt match policy: at least 6 characters long")
+	    else
+		return (Some "old password doesnt match"))
 
 and validateAndCreate u =
     vRes <- validateNewUser u;
@@ -970,16 +1023,21 @@ and profileAdminSection id =
     cc <- oneRow (SELECT COUNT( * ) AS N FROM post WHERE {eqNullable' (SQL post.ParentPostId) None} AND post.UserId = {[id]} );
     if me then
 	return <xml>
-	  <h3>Admin section</h3>
-	  <div>{[show cc.N]} post{[if cc.N = 1 then "" else "s"]}</div>
-	  
+	  <div class="row">
+	    <div class="col-md-4">
+	      
+	      <h4>Admin section</h4>
+	      <div>{[show cc.N]} post{[if cc.N = 1 then "" else "s"]}</div>
+	      <div><a link={postsPage id 0}>Posts</a></div>
+	    </div>
+	  </div>
 	</xml>
     else
 	return <xml></xml>
 	
 and userProfile id =
     me <- currUserId ();
-    row <- oneRow (SELECT user.Id, user.Nam FROM user WHERE user.Id = {[id]});
+    currUser <- oneRow (SELECT user.Id, user.Nam FROM user WHERE user.Id = {[id]});
     case me of
 	None => error <xml>Not authenticated</xml>
       | Some u' =>
@@ -988,26 +1046,65 @@ and userProfile id =
 	in
 	    admSection <- profileAdminSection id;
 	    isAdmin <- userIsAdmin id;
-	    return <xml>
-	      
-		<h2>{[case isMe of
-			  True => row.User.Nam ^ " (Me)"
-			| False => row.User.Nam]}</h2>
+	    c_oldpass <- source "";
+	    c_newpass <- source "";
+	    c_confpass <- source "";
+	    c_err <- source "";
+	    c_ok <- source "";
+	    return <xml>	      
+	      <div class="container">	
+		<h3>{[case isMe of
+			  True => currUser.User.Nam ^ " (Me)"
+			| False => currUser.User.Nam]}</h3>
 
 		{if isAdmin then
 		     <xml><div><b>Administrator</b></div></xml>
 		 else
 		     <xml></xml>}
-		
-		Change password ...
 
-		Describe yourself ...
+		<div class="row">
+		  {if isMe then
+		       <xml>
+			 <div class="col-md-3">
 
-		
+			     <h4>Change password</h4>
+			     <dyn signal={m <- signal c_ok; return <xml>{[m]}</xml>}></dyn>
+			     <dyn signal={m <- signal c_err; return <xml>{[m]}</xml>}></dyn>
 
-		{admSection}
-		
-	    </xml>
+			     <div class="form-group">
+			       <label>Old Password</label>
+			       <cpassword class="form-control form-control-sm" source={c_oldpass} />
+			     </div>
+			     <div class="form-group">
+			       <label>New Password</label>
+			       <cpassword class="form-control form-control-sm" source={c_newpass} />
+			     </div>
+			     <div class="form-group">
+			       <label>Confirm Password</label>
+			       <cpassword class="form-control form-control-sm" source={c_confpass} />
+			     </div>
+			     <button class="btn btn-sm btn-primary" value="Submit" onclick={fn _ =>
+											       set c_err "";
+											       oldpass <- get c_oldpass;
+											       newpass <- get c_newpass;
+											       confpass <- get c_confpass;
+											       res <- rpc (validateAndUpdatePass {OldPass=oldpass, NewPass=newpass, ConfPass =confpass});						       
+											       case res of
+												   None => set c_ok "Password changed"
+												 | Some err => set c_err err
+											   } />
+											     
+		       </div>
+		</xml>
+		   else
+		       <xml></xml>
+		  }
+		  
+		  </div>
+		  
+		  {admSection}
+	    </div>
+    </xml>
 	end
 	
 and turtle id =    
@@ -1413,12 +1510,12 @@ and generateMenu u current =
 	<li class="nav-item">
 	  {case current of
 	       ShogiPage => <xml><span class="nav-link bs-active">Shogi</span></xml>
-	     | _ => <xml><a class="nav-link" link={shogi ()}>Shogi</a></xml> }
+	     | _ => <xml><a class="nav-link" link={shogi ""}>Shogi</a></xml> }
 	</li>
 	<li class="nav-item">
 	  {case current of
 	       WeiqiPage => <xml><span class="nav-link bs-active">Weiqi</span></xml>
-	     | _ => <xml><a class="nav-link" link={weiqi ()}>Weiqi</a></xml> }
+	     | _ => <xml><a class="nav-link" link={weiqi ""}>Weiqi</a></xml> }
 	</li>
 
 	{case u of
@@ -1486,7 +1583,7 @@ and index_on u =
 	      {case u of
 		   None => <xml>
 		     <div class="col-md-4">
-		       <a link={index_login ()} class="btn btn-primary">Reserved Area</a>
+		       <a link={index_login ""} class="btn btn-primary">Reserved Area</a>
 		     </div>
 		   </xml>
 		 | Some _ =>
@@ -1509,25 +1606,6 @@ and index_on u =
 	    </div>
 	  </div>
 	</main>
-      </body>
-    </xml>
-
-and index_login () =
-    userid <- fresh;
-    passid <- fresh;
-    return <xml>
-      <head>
-	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
-	<link rel="stylesheet" type="text/css" href="/auth.css" />
-      </head>
-      <body class="text-center">
-	<form class="form-signin">
-	  <label class="sr-only" for={userid}>User</label>
-	  <textbox{#Nam} id={userid} class="form-control form-signin-sep" placeholder="User" />
-	  <label class="sr-only" for={passid}>Pass</label>
-	  <password{#Pass} id={passid} class="form-control form-signin-sep" placeholder="Password" />
-	  <submit class="btn btn-lg btn-primary btn-block" action={logon} value="Sign In" />
-	</form>
       </body>
     </xml>
 
@@ -1791,7 +1869,6 @@ and chess f =
 				  else
 				      f)
 		 in
-		     debug f;
 		     cid <- fresh;
 		     inputFen <- source start;
 		     
@@ -1817,10 +1894,36 @@ and chess f =
 		       </xml>
 		 end) u ChessPage   
     
-and shogi () =
+and shogi _ =
     u <- currUser ();
-    genPageT Shogi.editor u ShogiPage
+    editor <- Shogi.editor {Tree = Shogi.emptyGame (Shogi.startingPosition ()), OnPositionChanged = (fn _ => return ())};
+    genPageT (fn _ => return editor.Ed) u ShogiPage
     
-and weiqi () =
+and weiqi f =
     u <- currUser ();
-    genPageT Weiqi.editor u WeiqiPage
+    genPageT (fn _ =>
+		 let
+		     val start = (if f = "" then
+				      Weiqi.startingPosition ()
+				  else
+				      Weiqi.sToP f)
+		 in
+		     inputFen <- source (Weiqi.pToS start);
+		     editor <- Weiqi.editor {
+			       Tree = Weiqi.emptyGame start,
+			       OnPositionChanged = (fn p => set inputFen (Weiqi.pToS p))};
+		     return <xml>
+		       <div class={row}>
+			 <div class={col_sm_6}>
+			   {editor.Ed}
+			 </div>
+			 <div class={col_sm_6}>
+			   <div class={form_group}>
+			     <ctextbox class={form_control} source={inputFen} />
+			     <button class="btn btn-primary btn-sm" value="Set fen" onclick={fn _ => str <- get inputFen;
+												redirect (url (weiqi str))} />
+			     </div>
+			   </div>
+			 </div>		   
+		       </xml>
+		 end) u WeiqiPage

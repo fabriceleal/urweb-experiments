@@ -1,11 +1,30 @@
 open Canvas_FFI
 open Chess
+
+     
+type lsHeaders = list (string * string)
+type nodeId = int
+type userSer = string
+     
      
 signature GAME = sig
     val name : string
     type position
+    type move
+	 
     val startingPosition : unit -> position
-    val editor : unit -> transaction xbody
+    val pToS : position -> string
+    val sToP : string -> position
+
+    datatype gameTree = Node of nodeId * position * move * userSer * (list string) * (list gameTree)		    
+    datatype gameRoot = Root of nodeId * position * list gameTree * lsHeaders
+
+    val emptyGame : position -> gameRoot
+
+    type edApi = { Tree : gameRoot, OnPositionChanged : position -> transaction unit }
+    type ed = { Ed: xbody }
+	      
+    val editor : edApi -> transaction ed
 end
 
 			 
@@ -13,15 +32,144 @@ structure SChess : GAME = struct
     val name = "Chess"
     type position = Chess.gamestate
     fun startingPosition _ = Chess.fen_to_state Chess.startingFen
-    fun editor _ = return <xml></xml>
+
+    datatype gameTree = Node of nodeId * position * move * userSer * (list string) * (list gameTree)		    
+    datatype gameRoot = Root of nodeId * position * list gameTree * lsHeaders
+    fun emptyGame p : gameRoot =
+	Root (0, p, [], [])
+
+    fun pToS p = Chess.state_to_fen p
+    fun sToP f = Chess.fen_to_state f
+		 
+    fun editor _ = return {Ed = <xml></xml>}
 end
 		 
 structure Weiqi : GAME = struct
     val name = "Weiqi"
-    type position = { B: int }
-    fun startingPosition _ = {B = 2}
-    fun editor _ =
+    datatype player = White | Black
+
+    val playerEq : eq player = mkEq (fn a b =>
+					case (a, b) of
+					    (White, White) => True
+					  | (Black, Black) => True
+					  | (_, _) => False)
+			      
+    type piecerec = { Piece: player, X: int, Y: int }
+    type position = { Pieces: list piecerec, Player: player }
+    type mouseposition = {X: int, Y: int}
+    type renderstate = { Position : position, Mouse: option mouseposition }
+		       
+    fun startingPosition _ = { Pieces = [], Player = Black }
+			     
+    datatype gameTree = Node of nodeId * position * move * userSer * (list string) * (list gameTree)		    
+    datatype gameRoot = Root of nodeId * position * list gameTree * lsHeaders
+    fun emptyGame p : gameRoot =
+	Root (0, p, [], [])
+
+    val coordinates = "abcdefghijklmnopqrstuvwxyz"
+		      
+    fun pToS p =
+	let
+	    fun showplayer pl =
+		case pl of
+		    White => "W"
+		  | Black => "B"
+
+	    fun piece piece =
+		(show (strsub coordinates piece.X)) ^ (show (strsub coordinates piece.Y))
+		
+	    fun stones pieces player =
+		case pieces of
+		    [] => ""
+		  | h :: t =>
+		    if player = h.Piece then
+			"[" ^ (piece h)  ^ "]" ^ (stones t player)
+		    else
+			stones t player
+	in
+	    "AB" ^ (stones p.Pieces Black) ^ "AW" ^ (stones p.Pieces White) ^ "PL" ^ "[" ^ (showplayer p.Player) ^ "]" 
+	end
+	
+    fun sToP s =
+	let
+	    fun consumePlayer s =
+		if (strlen s) > 2 then
+		    case (substring s 0 3) of
+			"[W]" => (White, strsuffix s 3)
+		      | "[B]" => (Black, strsuffix s 3)
+		      | _ => (Black, strsuffix s 3)
+		else
+		    (Black, "")
+			 
+	    fun consumeStones s p =
+		let
+		    fun consumeAux s p ls =
+			if (strlen s) > 0 then
+			    let
+				val h = substring s 0 1
+			    in
+				if h = "[" then
+				    let
+					val col = substring s 1 1
+					val row = substring s 2 1
+				    in
+					(case (strsindex coordinates col, strsindex coordinates row) of
+					     (Some col', Some row') => 
+					     consumeAux (strsuffix s 4) p ({Piece = p, X = col', Y = row'} :: ls)
+					   | _ => (ls, (strsuffix s 4)))
+				    end
+				else
+				    (ls, s)
+			    end
+			else
+			    (ls, "")
+		in
+		    consumeAux s p []
+		end
+	    fun consume p s =
+		if (strlen s) > 1 then
+		    let
+			val h = substring s 0 2
+		    in
+			if h = "AW" then
+			    let 
+				val (stones, s2) = consumeStones (strsuffix s 2) White
+			    in
+				consume {Pieces = List.append p.Pieces stones, Player = p.Player} s2
+			    end
+			else
+			    (if h = "AB" then
+				 let 
+				     val (stones, s2) = consumeStones (strsuffix s 2) Black
+				 in
+				     consume {Pieces = List.append p.Pieces stones, Player = p.Player} s2
+				 end
+			     else
+				 (if h = "PL" then
+				      let
+					  val (p', s2) = consumePlayer (strsuffix s 2)
+				      in
+					  consume { Pieces = p.Pieces, Player = p' } s2
+				      end
+				  else
+				      p))			    
+		    end
+		else
+		    p
+		   
+	in
+	    consume { Pieces = [], Player = Black } s
+	end
+
+
+    fun getPosition t =
+	case t of
+	    Root (_, p, _, _) =>
+	    p
+	    
+    fun editor api =
 	c <- fresh;
+	rs <- source (Some {Mouse=None, Position=getPosition api.Tree});
 	let
 	    val stonehf = 13
 	    val stonesz = stonehf * 2
@@ -32,13 +180,85 @@ structure Weiqi : GAME = struct
 	    val h = space * lines
 	    val cw = w + (offs * 2)
 	    val ch = h + (offs * 2)
+
+	    fun screenToCoord rawX rawY =
+		let
+		    val xx = (rawX - offs + space / 2) / space
+		    val yy = (rawY - offs + space / 2) / space
+		in
+		    if xx > -1 && xx <= lines &&
+		       yy > -1 && yy <= lines then
+			Some {X=xx , Y=yy}
+		    else
+			None
+		end
+
+	    fun flip f =
+		case f of
+		    White => Black
+		  | Black => White
+
+	    fun mousemove e =
+		let
+		    val c = screenToCoord e.OffsetX e.OffsetY
+		in
+		    s <- get rs;
+		    case s of
+			None => return ()
+		      | Some s' =>
+			set rs (Some {
+				Position = s'.Position,
+				Mouse = c
+			       })
+		end
+		
+	    fun mouseclick e =
+		let
+		    val cc = screenToCoord e.OffsetX e.OffsetY
+		in
+		    case cc of
+			None => return ()
+		      | Some c => 	       
+			s <- get rs;
+			case s of
+			    None => return ()
+			  | Some s' =>
+			    let
+				val p = {
+				    Pieces = {Piece=s'.Position.Player,
+					      X = c.X,
+					      Y = c.Y} :: s'.Position.Pieces,
+				    Player = flip s'.Position.Player
+				}
+			    in
+			    set rs (Some {
+				    Position = p,
+				    Mouse = s'.Mouse
+				   });
+			    api.OnPositionChanged p
+			    end
+		end
 		     
 	    fun onloadFn () =
 		ctx <- getContext2d c;
 		wstone <- make_img(bless("/w.svg"));
 		bstone <- make_img(bless("/b.svg"));
 		let
-		    fun drawHs () =
+		    fun playerToStone p =
+			case p of
+			    White => wstone
+			  | Black => bstone
+
+		    and noneAt pieces x y =
+			case pieces of
+			    [] => True
+			  | h :: t =>
+			    if h.X = x && h.Y = y then
+				False
+			    else
+				noneAt t x y
+				
+		    and drawHs () =
 			let
 			    fun drawH n =
 				drawLine ctx offs (offs + n * space) (w + offs) (offs + n * space);
@@ -51,7 +271,7 @@ structure Weiqi : GAME = struct
 			    drawH lines
 			end
 
-		    fun drawVs () =
+		    and drawVs () =
 			let
 			    fun drawV n =
 				drawLine ctx (offs + n * space) offs (offs + n * space) (h + offs);
@@ -64,7 +284,7 @@ structure Weiqi : GAME = struct
 			    drawV lines
 			end
 
-		    fun drawMarker x y =		    
+		    and drawMarker x y =		    
 			beginPath ctx;
 			arc ctx
 			    (float ((x * space) + offs))
@@ -73,13 +293,33 @@ structure Weiqi : GAME = struct
 			closePath ctx;
 			fill ctx
 			
-		    fun drawStone img x y =
+		    and drawStone img x y =
 			drawImage2 ctx img
 				   (float ((x * space) + offs - stonehf))
 				   (float ((y * space) + offs - stonehf))
 				   (float stonesz) (float stonesz)
+
+		    and drawStones pieces =
+			case pieces of
+			    [] => return ()
+			  | h :: t =>
+			    drawStone (playerToStone h.Piece) h.X h.Y;
+			    drawStones t
 			
-		    fun drawBoard () =
+		    and drawPosition p =
+			case p of
+			    None => return ()
+			  | Some p' =>
+			    drawStones p'.Position.Pieces;
+			    case p'.Mouse of
+				None => return ()
+			      | Some p'' =>
+				if noneAt p'.Position.Pieces p''.X p''.Y then
+				    drawStone (playerToStone p'.Position.Player) p''.X p''.Y
+				else
+				    return ()
+			
+		    and drawBoard () =
 			clearRect ctx (float 0) (float 0) (float cw) (float ch);
 			setFillStyle ctx (make_rgba 212 172 89 1.0);
 			fillRect ctx 0 0 cw ch;		    
@@ -97,23 +337,23 @@ structure Weiqi : GAME = struct
 			
 			drawMarker 15 3;
 			drawMarker 15 9;
-			drawMarker 15 15;
-			
-			drawStone wstone 3 5;
-			drawStone bstone 3 4;
-			
+			drawMarker 15 15;			
+
+			p <- get rs;
+			drawPosition p;
+						
 			return ()
 		in
 		    requestAnimationFrame2 drawBoard;
 		    return <xml></xml>
 		end	    
 	in	
-	    return <xml>
-	      <canvas id={c} width={cw} height={ch}>			 
+	    return {Ed = <xml>
+	      <canvas id={c} width={cw} height={ch} onclick={mouseclick} onmousemove={mousemove}>
 	      </canvas>
 	      <active code={onloadFn ()}>
 	      </active>
-	    </xml>
+	    </xml>}
 	end
 end
 			 
@@ -121,6 +361,15 @@ structure Shogi : GAME = struct
     val name = "Shogi"
     type position = { C: int }
     fun startingPosition _ = {C = 3}
+			     
+    datatype gameTree = Node of nodeId * position * move * userSer * (list string) * (list gameTree)		    
+    datatype gameRoot = Root of nodeId * position * list gameTree * lsHeaders
+    fun emptyGame p : gameRoot =
+	Root (0, p, [], [])
+
+    fun pToS _ = ""
+    fun sToP _ = startingPosition ()
+		 
     fun editor _ =
 	c <- fresh;
 	let
@@ -253,13 +502,14 @@ structure Shogi : GAME = struct
 		    requestAnimationFrame2 drawBoard;
 		    return <xml></xml>
 		end
+		
 	in
-	    return <xml>
+	    return { Ed = <xml>
 	      <canvas id={c} width={cw} height={ch}>
 		
 	      </canvas>
 	      <active code={onloadFn ()}>
 	      </active>
-	    </xml>
+	    </xml> }
 	end
 end

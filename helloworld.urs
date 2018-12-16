@@ -45,6 +45,6 @@ val clock : lsTimecontrol -> transaction page
 
 val chess : string -> transaction page
 		    
-val shogi : unit -> transaction page
+val shogi : string -> transaction page
 
-val weiqi : unit -> transaction page
+val weiqi : string -> transaction page

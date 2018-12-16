@@ -27,6 +27,7 @@ file /ryuo.svg fonts/shogi/ryuo.svg
 file /tokin.svg fonts/shogi/tokin.svg
 file /w.svg fonts/weiqi/w.svg
 file /b.svg fonts/weiqi/b.svg
+file /favicon.ico rsrc/imgs/icons8-turtle-48.png
 library ../urweb-base64/lib
 library ../urweb-canvas/src/canvas
 library ../urweb-filetext/filetext_FFI
