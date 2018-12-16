@@ -1,6 +1,7 @@
 
 open Canvas_FFI
 open Chess
+open Weiqi
 open Bootstrap4
 open Pgnparse
 open Nmarkdown
@@ -1904,14 +1905,15 @@ and weiqi f =
     genPageT (fn _ =>
 		 let
 		     val start = (if f = "" then
-				      Weiqi.startingPosition ()
+				      SWeiqi.startingPosition ()
 				  else
-				      Weiqi.sToP f)
+				      SWeiqi.sToP f)
 		 in
-		     inputFen <- source (Weiqi.pToS start);
-		     editor <- Weiqi.editor {
-			       Tree = Weiqi.emptyGame start,
-			       OnPositionChanged = (fn p => set inputFen (Weiqi.pToS p))};
+		     inputFen <- source (SWeiqi.pToS start);
+		     editor <- SWeiqi.editor {
+			       Tree = SWeiqi.emptyGame start,
+			       OnPositionChanged = (fn p => set inputFen (SWeiqi.pToS p) (*;
+			       alert (SWeiqi.test p*))};
 		     return <xml>
 		       <div class={row}>
 			 <div class={col_sm_6}>

@@ -1,6 +1,7 @@
 open Canvas_FFI
 open Chess
-
+open Weiqi
+   
      
 type lsHeaders = list (string * string)
 type nodeId = int
@@ -25,6 +26,8 @@ signature GAME = sig
     type ed = { Ed: xbody }
 	      
     val editor : edApi -> transaction ed
+
+    val test : position -> string
 end
 
 			 
@@ -42,20 +45,14 @@ structure SChess : GAME = struct
     fun sToP f = Chess.fen_to_state f
 		 
     fun editor _ = return {Ed = <xml></xml>}
+    fun test _ = ""
 end
 		 
-structure Weiqi : GAME = struct
+structure SWeiqi : GAME = struct
     val name = "Weiqi"
-    datatype player = White | Black
 
-    val playerEq : eq player = mkEq (fn a b =>
-					case (a, b) of
-					    (White, White) => True
-					  | (Black, Black) => True
-					  | (_, _) => False)
-			      
-    type piecerec = { Piece: player, X: int, Y: int }
-    type position = { Pieces: list piecerec, Player: player }
+    type piecerec = Weiqi.piecerec
+    type position = Weiqi.position
     type mouseposition = {X: int, Y: int}
     type renderstate = { Position : position, Mouse: option mouseposition }
 		       
@@ -67,6 +64,69 @@ structure Weiqi : GAME = struct
 	Root (0, p, [], [])
 
     val coordinates = "abcdefghijklmnopqrstuvwxyz"
+
+    fun test p = (*
+	"groups of " ^
+	(case p.Player of White => "W " | Black => "B ") ^
+		  (show (List.length (allgroups p.Pieces p.Player)))*)
+	
+	case p.Pieces of
+	    [] => "0"
+	  | h :: _ =>
+	    (*let
+		val (l, _) = (alladjacentto h p.Pieces)
+	    in
+		show (List.length l)
+	    end*)(*
+	    let
+		val l = (piecesAdjacent h (other h.Piece) p.Pieces)
+	    in
+		show (List.length l)
+	    end*)
+	    (*
+	    let
+		val l = (piecesAdjacent h (other h.Piece) p.Pieces)
+	    in
+		case l of
+		    [] => "0"
+		  | h :: _ =>
+		    let
+			val (l, _) = (alladjacentto h p.Pieces)
+		    in
+			show (countliberties l p.Pieces)
+		    end		    
+	    end *)
+
+	    let
+		val l = groupsadjacentto h p.Pieces
+		val l2 = List.filter
+			     (fn g => (countliberties g p.Pieces) = 0) l
+	    in
+		show (List.length l2)
+	    end
+	    
+	    
+	    (*show (List.length
+		      (List.filter
+			   (fn g => hasnoliberties g p.Pieces)
+			   (groupsadjacentto h p.Pieces)))*)
+	    (*case (List.filter
+			   (fn g => hasnoliberties g p.Pieces)
+			   (groupsadjacentto h p.Pieces)) of
+		[] => "0"
+	      | h :: _ => 
+		(case h of
+		     [] => "0"
+		   | piece :: _ =>
+		     (show (strsub coordinates piece.X)) ^ (show (strsub coordinates piece.Y))
+		)*)
+		
+	(*show (List.length (removeIfInL {X=0,Y=0,Piece=Black}
+
+				       ({X=0,Y=1,Piece=Black} ::
+							      {X=0,Y=2,Piece=Black} ::
+	     {X=0,Y=0,Piece=Black} :: [])))*)
+	    
 		      
     fun pToS p =
 	let
@@ -193,11 +253,6 @@ structure Weiqi : GAME = struct
 			None
 		end
 
-	    fun flip f =
-		case f of
-		    White => Black
-		  | Black => White
-
 	    fun mousemove e =
 		let
 		    val c = screenToCoord e.OffsetX e.OffsetY
@@ -224,19 +279,20 @@ structure Weiqi : GAME = struct
 			    None => return ()
 			  | Some s' =>
 			    let
-				val p = {
-				    Pieces = {Piece=s'.Position.Player,
-					      X = c.X,
-					      Y = c.Y} :: s'.Position.Pieces,
-				    Player = flip s'.Position.Player
-				}
+				val r = {Piece=s'.Position.Player,
+					 X = c.X,
+					 Y = c.Y}
 			    in
-			    set rs (Some {
-				    Position = p,
-				    Mouse = s'.Mouse
-				   });
-			    api.OnPositionChanged p
-			    end
+				m <- Weiqi.move s'.Position r;
+				case m of
+				    None => return ()
+				  | Some p =>
+				    set rs (Some {
+					    Position = p,
+					    Mouse = s'.Mouse
+					   });
+				    api.OnPositionChanged p
+			    end			    
 		end
 		     
 	    fun onloadFn () =
@@ -369,6 +425,7 @@ structure Shogi : GAME = struct
 
     fun pToS _ = ""
     fun sToP _ = startingPosition ()
+    fun test _ = ""
 		 
     fun editor _ =
 	c <- fresh;
@@ -513,3 +570,5 @@ structure Shogi : GAME = struct
 	    </xml> }
 	end
 end
+			     
+fun test (p : SWeiqi.position) = SWeiqi.test p
