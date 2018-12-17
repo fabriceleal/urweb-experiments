@@ -9,14 +9,10 @@ val playerEq : eq player = mkEq (fn a b =>
 
 type piecerec = { Piece: player, X: int, Y: int }
 
+val precEq : eq piecerec = mkEq (fn a b => a.X = b.X && a.Y = b.Y && a.Piece = b.Piece)
+
 val plShow = mkShow (fn p => case p of White => "W" | Black => "B")
 val prShow : show piecerec = mkShow (fn p => "{Piece=" ^ (show p.Piece) ^ ", X=" ^ (show p.X) ^ ", Y=" ^ (show p.Y) ^"}")
-
-fun dbgSh [a ::: Type] (_ : show a) (ls:list a) : string=
-    case ls of
-	[] => ""
-      | h :: t =>
-	(show h) ^ ", " ^ (dbgSh t)
 
 	
 type position = { Pieces: list piecerec, Player: player }
@@ -42,7 +38,7 @@ fun inlist e l =
     case l of
 	[] => False
       | h :: t =>
-	if h.X = e.X && h.Y = e.Y && h.Piece = e.Piece then
+	if h = e then
 	    True
 	else
 	    inlist e t
@@ -52,23 +48,26 @@ fun alladjacentto (piece: piecerec) (board : list piecerec) : group * list piece
 (* for each adjacent, get its adjacents *)
 (* consume the board and return the rest *)
     let
-	fun allAdjacentToAux piece board aLs aRest aConsidered =
+	fun allAdjacentToAux piece board aLs aRest aPending =
 	    case board of
-		[] => (aLs, aRest, aConsidered)
+		[] =>
+		(case aPending of
+		     [] => (aLs, aRest)
+		   | h :: t =>
+		     allAdjacentToAux h aRest aLs [] t)
 	      | h :: t =>
 		if h.Piece = piece.Piece && (isadjacentto h piece) then
-		    (if inlist h aConsidered then
-			 allAdjacentToAux piece t aLs aRest aConsidered
+		    (if inlist h aLs then
+			 allAdjacentToAux piece t aLs aRest aPending
 		     else
-			 let
-			     val (adjOfAdj, rest2, considered2) = allAdjacentToAux h board (h :: aLs) aRest (h :: aConsidered)
-			 in
-			     allAdjacentToAux piece t adjOfAdj rest2 considered2
-			 end)
+			 allAdjacentToAux piece t (h :: aLs) aRest (h :: aPending))
 		else
-		    allAdjacentToAux piece t aLs (h :: aRest) aConsidered
+		    (if inlist h aLs then
+			 allAdjacentToAux piece t aLs aRest aPending
+		     else
+			 allAdjacentToAux piece t aLs (h :: aRest) aPending)
 
-	val (ls, rest, _) = allAdjacentToAux piece board (piece :: []) [] (piece :: []) 
+	val (ls, rest) = allAdjacentToAux piece board (piece :: []) [] []
     in
 	(ls, rest)
     end
@@ -119,12 +118,15 @@ fun groupsadjacentto h board =
     end
 
 fun free board x y =
-    case board of
-	[] => True
-      | h :: t => if h.X = x && h.Y = y then
-		      False
-		  else
-		      free t x y
+    if x > -1 && x <= 18 && y > -1 && y <= 18 then
+	(case board of
+	     [] => True
+	   | h :: t => if h.X = x && h.Y = y then
+			   False
+		       else
+			   free t x y)
+    else
+	False
 	    
 fun countlibertiesp (p:piecerec) (board:list piecerec) : int =
     (if free board (p.X + 1) p.Y then 1 else 0)
@@ -146,7 +148,7 @@ fun removeIfInL torem pieces =
     case pieces of
 	[] => []
       | h :: t =>
-	if h.X = torem.X && h.Y = torem.Y then
+	if h = torem then
 	    t
 	else
 	    h :: (removeIfInL torem t)
@@ -184,14 +186,15 @@ fun move (pos: position) (newmove : piecerec) : transaction (option position) =
 				  (fn g => (countliberties g tmp) = 0) adj
 	    val removed = removeAllG tmp noliberties
 	in
-	    debug "a:";
-	    debug (dbgSh (piecesAdjacent newmove (other newmove.Piece) tmp));
-	    debug (dbgSh (allgroupsofstones (piecesAdjacent newmove (other newmove.Piece) tmp) tmp));   
-	    debug "1:";
+	    debug "adjPieces:";
+	    debug (show (piecesAdjacent newmove (other newmove.Piece) tmp));
+	    debug "adjPieces: all groups";
+	    debug (show (allgroupsofstones (piecesAdjacent newmove (other newmove.Piece) tmp) tmp));   
+	    debug "List.length adj";
 	    debug (show (List.length adj));
-	    debug "2:";
+	    debug "2:List.length noliberties";
 	    debug (show (List.length noliberties));
-	    debug "3:";
+	    debug "3:List.length 1st noliberties";
 	    debug (show (case noliberties of [] => 0 | h :: _ => (List.length h) ));
 	    return (Some {Pieces = removed,
 		  Player = (other pos.Player)})
