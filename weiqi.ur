@@ -206,9 +206,9 @@ fun allgroupsofstones sqs board =
 	[] => []
       | h :: t =>
 	let
-	    val (grp, rest) = alladjacentto h board
+	    val (grp, _) = alladjacentto h board
 	in
-	    grp :: (allgroupsofstones t rest)
+	    grp :: (allgroupsofstones t board) 
 	end
 
 fun groupsadjacentto h board =
