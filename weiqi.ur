@@ -301,6 +301,32 @@ fun containsPieceAt ps x y =
 	    True
 	else
 	    containsPieceAt t x y
+
+fun diff lsa lsb =
+    case (lsa, lsb) of
+	([], []) => False
+      | ([], _ :: _) => True
+      | (_ :: _, []) => True
+      | (a' :: ta', _) =>
+	let
+	    fun remLs e l =
+		case l of
+		    [] => None
+		  | h :: t =>
+		    if h = e then
+			Some t
+		    else
+			(case (remLs e t) of
+			     None => None
+			   | Some l => Some (h :: l))
+			  
+	    val res = remLs a' lsb
+	in
+	    case res of
+		None => True
+	      | Some tb' => diff ta' tb'
+	end
+
     
 fun legal (pos: position) (newmove : piecerec) : bool =
     if containsPieceAt pos.Pieces newmove.X newmove.Y then
@@ -312,6 +338,10 @@ fun legal (pos: position) (newmove : piecerec) : bool =
 	    val (grp, _) = alladjacentto newmove tmp
 	in
 	    (countliberties grp tmp) > 0
+	    &&
+	    (case pos.Previous of
+		 None => True
+	       | Some prev => diff prev.Pieces tmp)
 	end
 
 fun move (pos: position) (newmove : piecerec) : option position =
