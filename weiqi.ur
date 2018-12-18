@@ -170,7 +170,10 @@ fun alladjacentto (piece: piecerec) (board : list piecerec) : group * list piece
 
 	val (ls, rest) = allAdjacentToAux piece board (piece :: []) [] []
     in
-	(ls, rest)
+	if inlist piece board then
+	    (ls, rest)
+	else
+	    ([], board)
     end
    	    
 		
@@ -182,7 +185,10 @@ fun allgroups (pieces:list piecerec) (pl:player) : list group =
 	    let
 		val (grp, rest) = alladjacentto h t
 	    in
-		grp :: (allgroups rest pl)
+		if (List.length grp) > 0 then
+		    grp :: (allgroups rest pl)
+		else
+		    allgroups rest pl
 	    end
 	else
 	    allgroups t pl
@@ -206,16 +212,20 @@ fun allgroupsofstones sqs board =
 	[] => []
       | h :: t =>
 	let
-	    val (grp, _) = alladjacentto h board
+	    val (grp, rest) = alladjacentto h board
 	in
-	    grp :: (allgroupsofstones t board) 
+	    if (List.length grp) > 0 then		
+		grp :: (allgroupsofstones t rest)
+	    else
+		allgroupsofstones t rest
 	end
 
 fun groupsadjacentto h board =
     let
 	val p = h.Piece
+	val agrps = allgroupsofstones (piecesAdjacent h (other p) board) board
     in
-	allgroupsofstones (piecesAdjacent h (other p) board) board
+	agrps
     end
 
 fun free board x y =
@@ -282,15 +292,27 @@ fun makemove (pos: position) (newmove : piecerec) : position =
 	 Player = (other pos.Player),
 	 Previous = Some {Pieces = pos.Pieces}}
     end
+
+fun containsPieceAt ps x y =
+    case ps of
+	[] => False
+      | h :: t =>
+	if h.X = x && h.Y = y then
+	    True
+	else
+	    containsPieceAt t x y
     
 fun legal (pos: position) (newmove : piecerec) : bool =
-    let
-	val tmp' = makemove pos newmove
-	val tmp = tmp'.Pieces
-	val (grp, _) = alladjacentto newmove tmp
-    in
-	(countliberties grp tmp) > 0
-    end
+    if containsPieceAt pos.Pieces newmove.X newmove.Y then
+	False
+    else	
+	let
+	    val tmp' = makemove pos newmove
+	    val tmp = tmp'.Pieces
+	    val (grp, _) = alladjacentto newmove tmp
+	in
+	    (countliberties grp tmp) > 0
+	end
 
 fun move (pos: position) (newmove : piecerec) : option position =
     if legal pos newmove then
