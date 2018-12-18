@@ -10,12 +10,13 @@ val playerEq : eq player = mkEq (fn a b =>
 type piecerec = { Piece: player, X: int, Y: int }
 
 val precEq : eq piecerec = mkEq (fn a b => a.X = b.X && a.Y = b.Y && a.Piece = b.Piece)
-
+(*
 val plShow = mkShow (fn p => case p of White => "W" | Black => "B")
 val prShow : show piecerec = mkShow (fn p => "{Piece=" ^ (show p.Piece) ^ ", X=" ^ (show p.X) ^ ", Y=" ^ (show p.Y) ^"}")
+*)
 
-	
-type position = { Pieces: list piecerec, Player: player }
+type positionSimple = { Pieces: list piecerec }
+type position = { Pieces: list piecerec, Player: player, Previous : option positionSimple }
 
 val coordinates = "abcdefghijklmnopqrstuvwxyz"
 
@@ -107,13 +108,15 @@ fun sToP (s : string) : position =
 		    end
 		else
 		    p
+
+	    val consumed = consume { Pieces = [], Player = Black } s
 		   
 	in
-	    consume { Pieces = [], Player = Black } s
+	    { Pieces = consumed.Pieces, Player = consumed.Player, Previous = None }
 	end
 
     
-val startingPosition : position = { Pieces = [], Player = Black }
+val startingPosition : position = { Pieces = [], Player = Black, Previous = None }
 		
 type group = list piecerec
 
@@ -267,35 +270,30 @@ fun removeAllG p gr =
       | h :: t =>
 	removeAllG (removeAll p h) t
 
-fun legal (pos: position) (newmove : piecerec) : bool =
+fun makemove (pos: position) (newmove : piecerec) : position =
     let
 	val tmp = newmove :: pos.Pieces
+	val adj = groupsadjacentto newmove tmp
+	val noliberties = List.filter
+			      (fn g => (countliberties g tmp) = 0) adj
+	val removed = removeAllG tmp noliberties
+    in
+	{Pieces = removed,
+	 Player = (other pos.Player),
+	 Previous = Some {Pieces = pos.Pieces}}
+    end
+    
+fun legal (pos: position) (newmove : piecerec) : bool =
+    let
+	val tmp' = makemove pos newmove
+	val tmp = tmp'.Pieces
 	val (grp, _) = alladjacentto newmove tmp
     in
 	(countliberties grp tmp) > 0
     end
 
-fun move (pos: position) (newmove : piecerec) : transaction (option position) =
+fun move (pos: position) (newmove : piecerec) : option position =
     if legal pos newmove then
-	let
-	    val tmp = newmove :: pos.Pieces
-	    val adj = groupsadjacentto newmove tmp	    
-	    val noliberties = List.filter
-				  (fn g => (countliberties g tmp) = 0) adj
-	    val removed = removeAllG tmp noliberties
-	in
-	    debug "adjPieces:";
-	    debug (show (piecesAdjacent newmove (other newmove.Piece) tmp));
-	    debug "adjPieces: all groups";
-	    debug (show (allgroupsofstones (piecesAdjacent newmove (other newmove.Piece) tmp) tmp));   
-	    debug "List.length adj";
-	    debug (show (List.length adj));
-	    debug "2:List.length noliberties";
-	    debug (show (List.length noliberties));
-	    debug "3:List.length 1st noliberties";
-	    debug (show (case noliberties of [] => 0 | h :: _ => (List.length h) ));
-	    return (Some {Pieces = removed,
-		  Player = (other pos.Player)})
-	end
+	Some (makemove pos newmove)
     else
-	return None
+	None

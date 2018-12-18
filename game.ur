@@ -190,8 +190,7 @@ structure SWeiqi : GAME = struct
 					 X = c.X,
 					 Y = c.Y}
 			    in
-				m <- Weiqi.move s'.Position r;
-				case m of
+				case (Weiqi.move s'.Position r) of
 				    None => return ()
 				  | Some p =>
 				    set rs (Some {
