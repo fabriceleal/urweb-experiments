@@ -17,6 +17,104 @@ val prShow : show piecerec = mkShow (fn p => "{Piece=" ^ (show p.Piece) ^ ", X="
 	
 type position = { Pieces: list piecerec, Player: player }
 
+val coordinates = "abcdefghijklmnopqrstuvwxyz"
+
+fun pToS (p : position) : string =
+    let
+	fun showplayer pl =
+	    case pl of
+		White => "W"
+	      | Black => "B"
+
+	fun piece piece =
+	    (show (strsub coordinates piece.X)) ^ (show (strsub coordinates piece.Y))
+	    
+	fun stones pieces player =
+	    case pieces of
+		[] => ""
+	      | h :: t =>
+		if player = h.Piece then
+		    "[" ^ (piece h)  ^ "]" ^ (stones t player)
+		else
+		    stones t player
+    in
+	"AB" ^ (stones p.Pieces Black) ^ "AW" ^ (stones p.Pieces White) ^ "PL" ^ "[" ^ (showplayer p.Player) ^ "]" 
+    end
+
+fun sToP (s : string) : position =
+	let
+	    fun consumePlayer s =
+		if (strlen s) > 2 then
+		    case (substring s 0 3) of
+			"[W]" => (White, strsuffix s 3)
+		      | "[B]" => (Black, strsuffix s 3)
+		      | _ => (Black, strsuffix s 3)
+		else
+		    (Black, "")
+			 
+	    fun consumeStones s p =
+		let
+		    fun consumeAux s p ls =
+			if (strlen s) > 0 then
+			    let
+				val h = substring s 0 1
+			    in
+				if h = "[" then
+				    let
+					val col = substring s 1 1
+					val row = substring s 2 1
+				    in
+					(case (strsindex coordinates col, strsindex coordinates row) of
+					     (Some col', Some row') => 
+					     consumeAux (strsuffix s 4) p ({Piece = p, X = col', Y = row'} :: ls)
+					   | _ => (ls, (strsuffix s 4)))
+				    end
+				else
+				    (ls, s)
+			    end
+			else
+			    (ls, "")
+		in
+		    consumeAux s p []
+		end
+	    fun consume p s =
+		if (strlen s) > 1 then
+		    let
+			val h = substring s 0 2
+		    in
+			if h = "AW" then
+			    let 
+				val (stones, s2) = consumeStones (strsuffix s 2) White
+			    in
+				consume {Pieces = List.append p.Pieces stones, Player = p.Player} s2
+			    end
+			else
+			    (if h = "AB" then
+				 let 
+				     val (stones, s2) = consumeStones (strsuffix s 2) Black
+				 in
+				     consume {Pieces = List.append p.Pieces stones, Player = p.Player} s2
+				 end
+			     else
+				 (if h = "PL" then
+				      let
+					  val (p', s2) = consumePlayer (strsuffix s 2)
+				      in
+					  consume { Pieces = p.Pieces, Player = p' } s2
+				      end
+				  else
+				      p))			    
+		    end
+		else
+		    p
+		   
+	in
+	    consume { Pieces = [], Player = Black } s
+	end
+
+    
+val startingPosition : position = { Pieces = [], Player = Black }
+		
 type group = list piecerec
 
 fun isadjacentto (h:piecerec) (t:piecerec) : bool =

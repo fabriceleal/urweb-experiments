@@ -1897,7 +1897,7 @@ and chess f =
     
 and shogi _ =
     u <- currUser ();
-    editor <- Shogi.editor {Tree = Shogi.emptyGame (Shogi.startingPosition ()), OnPositionChanged = (fn _ => return ())};
+    editor <- SShogi.editor {Tree = SShogi.emptyGame (SShogi.startingPosition ()), OnPositionChanged = (fn _ => return ())};
     genPageT (fn _ => return editor.Ed) u ShogiPage
     
 and weiqi f =
