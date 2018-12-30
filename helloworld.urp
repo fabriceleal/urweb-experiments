@@ -56,6 +56,7 @@ file /clock.css rsrc/css/clock.css
 rewrite style Chess/* [-]
 rewrite style Helloworld/* [-]
 file /bootstrap.min.css rsrc/css/bootstrap.min.css
+file /bootstrap.min.css.map rsrc/css/bootstrap.min.css.map
 minHeap 5120000
 
 $/string
