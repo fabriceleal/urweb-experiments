@@ -29,6 +29,7 @@ file /w.svg fonts/weiqi/w.svg
 file /b.svg fonts/weiqi/b.svg
 file /favicon.ico rsrc/imgs/icons8-turtle-48.png
 library ../urweb-base64/lib
+library ../urweb-mathjax/lib
 library ../urweb-canvas/src/canvas
 library ../urweb-filetext/filetext_FFI
 library ../urweb-nmarkdown/nmarkdown
@@ -49,6 +50,7 @@ allow responseHeader Content-Disposition
 file /bodyn.css rsrc/css/bodyn.css
 file /bodyj.css rsrc/css/bodyj.css
 file /auth.css rsrc/css/auth.css
+file /math.css rsrc/css/math.css
 file /exp.css rsrc/css/exp.css
 file /clock.css rsrc/css/clock.css
 rewrite style Chess/* [-]

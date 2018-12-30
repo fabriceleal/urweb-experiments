@@ -1,0 +1,15 @@
+html, body {
+    height: 100%;
+}
+
+.container {
+    height: 100% !important;
+}
+
+.row {
+    height: 100% !important;
+}
+
+textarea.form-control {
+    height: calc(100% - 24px) !important;
+}

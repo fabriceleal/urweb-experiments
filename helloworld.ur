@@ -20,7 +20,7 @@ style content
 style commands
 style flip
 style cmd_button
-      
+
 structure Room = Sharedboard.Make(struct
 				      type t = boardmsg
 				  end)
@@ -195,6 +195,7 @@ datatype menuKind =
        | ChessPage
        | ShogiPage
        | WeiqiPage
+       | MathPage
        | Posts
        | Profile
        | AllUsers
@@ -1469,29 +1470,38 @@ and genPageU content cur =
     genPage content u' cur
     
 and genPage content u cur =
-    genPageT (fn _ => return content) u cur
+    genPageT (fn _ => return content) u cur []
 
-and genPageT contentT u cur =
-    content <- contentT ();
-    return <xml>
-      <head>
-	<link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
-	<link rel="stylesheet" type="text/css" href="/exp.css" />
-	<link rel="stylesheet" type="text/css" href="/bodyn.css" />
-	{ generateTitle cur }
-      </head>
-      <body>
-	<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
-	  { generateMenu u cur }
-	</nav>
-	<main class="container">
-	  <div>
-	    { content }
-	  </div>
-	</main>
-      </body>
-    </xml>
-
+and genPageT contentT u cur extraLinks =
+    let
+	fun expandLinks links =
+	    case links of
+		[] => <xml></xml>
+	      | h :: t =>
+		<xml>
+		  <link rel="stylesheet" type="text/css" href={h} />
+		  { expandLinks t }
+		</xml>
+    in
+	content <- contentT ();
+	return <xml>
+	  <head>
+	    <link rel="stylesheet" type="text/css" href="/bootstrap.min.css" />
+	    <link rel="stylesheet" type="text/css" href="/exp.css" />
+	    <link rel="stylesheet" type="text/css" href="/bodyn.css" />
+	    { expandLinks extraLinks }
+	    { generateTitle cur }
+	  </head>
+	  <body>
+	    <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+	      { generateMenu u cur }
+	    </nav>
+	    <main class="container">	  
+	      { content }
+	    </main>
+	  </body>
+	</xml>
+    end
 and generateTitle _ =
     <xml>
       <title>Turtle Corner</title>
@@ -1518,7 +1528,11 @@ and generateMenu u current =
 	       WeiqiPage => <xml><span class="nav-link bs-active">Weiqi</span></xml>
 	     | _ => <xml><a class="nav-link" link={weiqi ""}>Weiqi</a></xml> }
 	</li>
-
+	<li class="nav-item">
+	  {case current of
+	       MathPage => <xml><span class="nav-link bs-active">Math</span></xml>
+	     | _ => <xml><a class="nav-link" link={math ""}>Math</a></xml> }
+	</li>
 	{case u of
 	     None => <xml></xml>
 	   | Some _ =>
@@ -1893,12 +1907,12 @@ and chess f =
 			   </div>
 			 </div>
 		       </xml>
-		 end) u ChessPage   
+		 end) u ChessPage []
     
 and shogi _ =
     u <- currUser ();
     editor <- SShogi.editor {Tree = SShogi.emptyGame (SShogi.startingPosition ()), OnPositionChanged = (fn _ => return ())};
-    genPageT (fn _ => return editor.Ed) u ShogiPage
+    genPageT (fn _ => return editor.Ed) u ShogiPage []
     
 and weiqi f =
     u <- currUser ();
@@ -1928,4 +1942,40 @@ and weiqi f =
 			   </div>
 			 </div>		   
 		       </xml>
-		 end) u WeiqiPage
+		 end) u WeiqiPage []
+
+and math (e : string) =
+    u <- currUser ();
+    genPageT (fn _ =>
+		 
+		 inp <- source e;
+		 ddid <- fresh;
+		 let
+		     fun tick mj =
+			 let
+			     fun inner _ =
+				 t <- get inp;
+				 Mathjax.typesetcontent mj t ddid;
+				 setTimeout inner 1000;
+				 return ()
+			 in
+			     inner ()
+			 end
+		 in
+		     return <xml>
+		       <div class="row">
+			 <div class={col_sm_6}>
+			   <div id={ddid}>
+			   </div>
+			 </div>
+			 <div class={col_sm_6}>
+			     <active code={mj <- Mathjax.load ();
+					   tick mj;
+					   return <xml><ctextarea class="form-control" source={inp} /></xml>}>
+			   </active>		   
+
+		       </div>
+		     </div>		   
+    </xml>
+		 end
+	     ) u MathPage ((bless "/math.css") :: [])
