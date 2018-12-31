@@ -1212,6 +1212,12 @@ and createPost () =
 	    <textbox{#Nam} id={inNam} class="form-control"/>
 	  </div>
 	</div>
+	<div>
+	  <radio{#Typ}>
+	    <li><radioOption value="0" />Chess</li>
+	    <li><radioOption value="1" />Weiqi</li>
+	  </radio>
+	</div>
 	<div class="form-group">
 	  <label for={inFile}>Upload pgn file</label>
 	  <upload{#Fil} id={inFile} class="form-control-file"/>
@@ -1283,13 +1289,13 @@ and addPost newPost =
 													{[None]}, {[None]}, {[None]} ));
 		    importChildren id idP fen children
 		    
-	    fun insertPost nam idUser parent tree =
+	    fun insertPost nam typ idUser parent tree =
 		id <- nextval postSeq;    
 		idP <- nextval positionSeq;
 		sharedboard <- ChessRoom.create;
 		
 		dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId, PostType)
-		     VALUES ({[id]}, {[nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[parent]}, {[idUser]}, {[ptChess]}));
+		     VALUES ({[id]}, {[nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[parent]}, {[idUser]}, {[typ]}));
 		
 		importTree id idP tree;
 		return id
@@ -1301,8 +1307,8 @@ and addPost newPost =
 
 	    fun insertPosts idUser ls =
 		case ls of
-		    [] => insertPost newPost.Nam idUser None (Root (0, startingFen, [], []))
-		  | h :: [] => insertPost newPost.Nam idUser None h
+		    [] => insertPost newPost.Nam (optStrToTyp newPost.Typ) idUser None (Root (0, startingFen, [], []))
+		  | h :: [] => insertPost newPost.Nam (optStrToTyp newPost.Typ) idUser None h
 		  | h :: t =>
 		    (* insert base post. *)
 		    id <- nextval postSeq;    
@@ -1310,12 +1316,12 @@ and addPost newPost =
 		    sharedboard <- ChessRoom.create;
 		    
 		    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId, PostType)
-			 VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[None]}, {[idUser]}, {[ptChess]}));
+			 VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[None]}, {[idUser]}, {[optStrToTyp newPost.Typ]}));
 
 		    dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]},
 													{[None]}, {[None]}, {[None]} ));
 		    
-		    _ <- List.mapM (fn e => insertPost (getTitle e) idUser (Some id) e) ls;
+		    _ <- List.mapM (fn e => insertPost (getTitle e) (optStrToTyp newPost.Typ) idUser (Some id) e) ls;
 		    
 		    return id
 		    

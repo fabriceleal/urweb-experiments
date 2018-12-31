@@ -100,8 +100,8 @@ fun renderPost p boilerplate renderPostTree doSpeak fnCb =
 	val id = p.Post.Id
 	val typ = p.Post.PostType
     in
-	case typ of
-	    1 => 
+	if typ = ptChess then
 	    renderChessPost id boilerplate renderPostTree doSpeak fnCb
-	  | _ => error <xml>Unknown post type</xml>
+	else
+	    error <xml>Unknown post type</xml>
     end
