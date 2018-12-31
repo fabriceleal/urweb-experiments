@@ -11,7 +11,8 @@ table position : {Id: int, PostId: int, Fen : string, Move: option string, MoveA
 		     PRIMARY KEY Id,
 		     CONSTRAINT CPreviousPositionId FOREIGN KEY PreviousPositionId REFERENCES position (Id) ON DELETE CASCADE
 
-table post : { Id : int, Nam : string, RootPositionId: int, UserId: userId, CurrentPositionId : int, ParentPostId : option int, Room : topic }
+table post : { Id : int, Nam : string, RootPositionId: int, UserId: userId, CurrentPositionId : int, ParentPostId : option int,
+	       Room : topic, PostType : postType }
 		 PRIMARY KEY Id (*,
 		 CONSTRAINT CRootPositionId FOREIGN KEY RootPositionId REFERENCES position (Id) ON DELETE CASCADE,
 		 CONSTRAINT CCurrentPositionId FOREIGN KEY CurrentPositionId REFERENCES position (Id) ON DELETE CASCADE

@@ -20,7 +20,9 @@ CREATE SEQUENCE uw_Database_postSeq;
                                     uw_rootpositionid int8 NOT NULL, 
                                     uw_userid int8 NOT NULL, 
                                     uw_currentpositionid int8 NOT NULL, 
-                                    uw_parentpostid int8, uw_room int8 NOT NULL,
+                                    uw_parentpostid int8, 
+                                    uw_room int8 NOT NULL, 
+                                    uw_posttype int8 NOT NULL,
       PRIMARY KEY (uw_id)
        
       );

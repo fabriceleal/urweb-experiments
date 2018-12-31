@@ -1,3 +1,5 @@
+open Types
+open Posts
 open Database
 open Canvas_FFI
 open Chess
@@ -6,47 +8,12 @@ open Bootstrap4
 open Pgnparse
 open Nmarkdown
 open Game
-     
+
+val maxFileSize = 1000000
+		  
 (* login page *)
 style form_signin
 style form_signin_sep
-
-(* clock page *)
-style white_player
-style black_player
-style half
-style full
-style content
-style commands
-style flip
-style cmd_button
-
-datatype clockSide =
-	 CWhite
-       | CBlack
-
-
-datatype clockStatus =
-	 Pend
-       | Run of clockSide
-       | Lost of clockSide
-
-fun otherC c =
-    case c of
-	CWhite => CBlack
-      | CBlack => CWhite
-
-fun eqC a b =
-    case (a, b) of
-	(CWhite, CWhite) => True
-      | (CBlack, CBlack) => True
-      | (_, _) => False
-		  
-type timecontrol =
-     {BaseTime : int, Increment: int, ResetIfUnexpired: bool}
-
-type lsTimecontrol = list timecontrol
-
 
 open Pgn.Make(struct
 		  con id = #Id
@@ -112,21 +79,6 @@ fun currUserIsAdmin () =
 	None => return False
       | Some r =>
 	userIsAdmin r.Id
-
-
-val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
- 
-val light = make_rgba 239 238 240 1.0
-val dark = make_rgba 119 138 181 1.0
-val red = make_rgba 255 0 0 1.0
-val promBg = make_rgba 244 244 244 1.0
-val promBgSel = make_rgba 211 211 211 1.0
-val size = 55
-val x = 10
-val y = 10
-val offProm = 2
-val canvasW = size * 9 + offProm
-val canvasH = size * 8
 
 datatype pageKind =
 	 Active of string * url
@@ -282,8 +234,8 @@ fun addPostF idUser idPostParent txt =
 	    idP <- nextval positionSeq;
 	    sharedboard <- ChessRoom.create;
     
-	    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId)
-		 VALUES ({[id]}, {[txt]}, {[idP]}, {[idP]}, {[sharedboard]}, {[idPostParent]}, {[idUser]}));
+	    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId, PostType)
+		 VALUES ({[id]}, {[txt]}, {[idP]}, {[idP]}, {[sharedboard]}, {[idPostParent]}, {[idUser]}, {[ptChess]}));
 	    
 	    importTree id idP tree
 
@@ -438,6 +390,7 @@ fun renderPostTree (id : int) (recTree : bool) : transaction xbody =
     end
 
 and postPage2 id () =
+    p <- oneRow (SELECT post.Id, post.PostType FROM post WHERE post.Id = {[id]});
     current <- oneRow (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
 		       FROM post
 			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
@@ -1360,8 +1313,8 @@ and addPost newPost =
 		idP <- nextval positionSeq;
 		sharedboard <- ChessRoom.create;
 		
-		dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId)
-		     VALUES ({[id]}, {[nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[parent]}, {[idUser]}));
+		dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId, PostType)
+		     VALUES ({[id]}, {[nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[parent]}, {[idUser]}, {[ptChess]}));
 		
 		importTree id idP tree;
 		return id
@@ -1381,8 +1334,8 @@ and addPost newPost =
 		    idP <- nextval positionSeq;
 		    sharedboard <- ChessRoom.create;
 		    
-		    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId)
-			 VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[None]}, {[idUser]}));
+		    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId, PostType)
+			 VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[None]}, {[idUser]}, {[ptChess]}));
 
 		    dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[startingFen]},
 													{[None]}, {[None]}, {[None]} ));
@@ -1395,18 +1348,13 @@ and addPost newPost =
 		      
 	in
 
-	    if szF > 1000000 then
+	    if szF > maxFileSize then
 		return (error <xml>too big</xml>)
 	    else
 		if szF > 0 then
-(*		    debug "file"; *)
 		    id <- insertPosts idUser (pgnsToGames (Filetext_FFI.blobAsText (fileData newPost.Fil)));	    
 		    redirect (url (postPage2 id ()))
 		else
-(*		    debug "raw text";
-		    debug (case (split newPost.Pgn) of
-			       (a, b) => "ls: " ^ (show a) ^ "rest: " ^ b); *)
-		    (*			debug (show (pgnsToGames newPost.Pgn));*)
 		    id <- insertPosts idUser (pgnsToGames newPost.Pgn);	    
 		    redirect (url (postPage2 id ()))
 
@@ -1614,7 +1562,157 @@ and testResponsive () =
       </body>
     </xml>
 
-and handleClockF r =
+and index () =
+    u <- currUser ();
+    index_on u
+
+and chess f =
+    u <- currUser ();
+    genPageT (fn _ =>
+		 let
+		     val start = (if f = "" then
+				      startingFen
+				  else
+				      f)
+		 in
+		     cid <- fresh;
+		     inputFen <- source start;
+		     
+		     (board, _, _, _) <- generate_board start cid 67 True
+						     emptyTree
+						     (fn _ => return [])
+						     (fn s => return ())
+						     emptyTopLevelHandler
+						     (fn st => set inputFen (state_to_fen st))
+						     None;
+		     return <xml>
+		       <div class={row}>
+			 <div class={col_sm_6}>
+			   {board}
+			 </div>
+			 <div class={col_sm_6}>
+			   <div class={form_group}>
+			     <ctextbox class={form_control} source={inputFen} />
+			     <button class="btn btn-primary btn-sm" value="Set fen" onclick={fn _ => str <- get inputFen; redirect (url (chess str))} />
+			     </div>
+			   </div>
+			 </div>
+		       </xml>
+		 end) u ChessPage []
+    
+and shogi _ =
+    u <- currUser ();
+    editor <- SShogi.editor {Tree = SShogi.emptyGame (SShogi.startingPosition ()), OnPositionChanged = (fn _ => return ())};
+    genPageT (fn _ => return editor.Ed) u ShogiPage []
+    
+and weiqi f =
+    u <- currUser ();
+    genPageT (fn _ =>
+		 let
+		     val start = (if f = "" then
+				      SWeiqi.startingPosition ()
+				  else
+				      SWeiqi.sToP f)
+		 in
+		     inputFen <- source (SWeiqi.pToS start);
+		     editor <- SWeiqi.editor {
+			       Tree = SWeiqi.emptyGame start,
+			       OnPositionChanged = (fn p => set inputFen (SWeiqi.pToS p) (*;
+			       alert (SWeiqi.test p*))};
+		     return <xml>
+		       <div class={row}>
+			 <div class={col_sm_6}>
+			   {editor.Ed}
+			 </div>
+			 <div class={col_sm_6}>
+			   <div class={form_group}>
+			     <ctextbox class={form_control} source={inputFen} />
+			     <button class="btn btn-primary btn-sm" value="Set fen" onclick={fn _ => str <- get inputFen;
+												redirect (url (weiqi str))} />
+			     </div>
+			   </div>
+			 </div>		   
+		       </xml>
+		 end) u WeiqiPage []
+
+and math (e : string) =
+    u <- currUser ();
+    genPageT (fn _ =>
+		 
+		 inp <- source e;
+		 ddid <- fresh;
+		 let
+		     fun tick mj =
+			 let
+			     fun inner _ =
+				 t <- get inp;
+				 Mathjax.typesetcontent mj t ddid;
+				 setTimeout inner 1000;
+				 return ()
+			 in
+			     inner ()
+			 end
+		 in
+		     return <xml>
+		       <div class="row">
+			 <div class={col_sm_6}>
+			   <div id={ddid}>
+			   </div>
+			 </div>
+			 <div class={col_sm_6}>
+			     <active code={mj <- Mathjax.load ();
+					   tick mj;
+					   return <xml><ctextarea class="form-control" source={inp} /></xml>}>
+			   </active>		   
+
+		       </div>
+		     </div>		   
+    </xml>
+		 end
+	     ) u MathPage ((bless "/math.css") :: [])
+
+    
+(*** clock ***)
+	      
+(* clock page *)
+style white_player
+style black_player
+style half
+style full
+style content
+style commands
+style flip
+style cmd_button
+
+datatype clockSide =
+	 CWhite
+       | CBlack
+
+
+datatype clockStatus =
+	 Pend
+       | Run of clockSide
+       | Lost of clockSide
+
+
+fun otherC c =
+    case c of
+	CWhite => CBlack
+      | CBlack => CWhite
+
+fun eqC a b =
+    case (a, b) of
+	(CWhite, CWhite) => True
+      | (CBlack, CBlack) => True
+      | (_, _) => False
+		  
+type timecontrol =
+     {BaseTime : int, Increment: int, ResetIfUnexpired: bool}
+
+type lsTimecontrol = list timecontrol
+
+
+fun handleClockF r : transaction page =
     let
 	fun validate r : option (int * int)=	    
 	    baseTime <- read r.BaseTime;
@@ -1626,7 +1724,7 @@ and handleClockF r =
 	  | Some (bt, i) => redirect (url (clock ({BaseTime =bt, Increment = i, ResetIfUnexpired = False} :: []) ))
     end
 
-and handleClockB r =
+and handleClockB r : transaction page =
     let
 	fun validate r : option (int * int) =
 	    baseTime <- read r.BaseTime;
@@ -1643,7 +1741,7 @@ and handleClockB r =
 	  | Some (bt, p) => redirect (url (clock (genByoyomi p {BaseTime =bt, Increment = 0, ResetIfUnexpired = True}) ))
     end
     
-and clockSetup () =
+and clockSetup () : transaction page =
     return <xml>
       <body>
 	<div>
@@ -1666,7 +1764,7 @@ and clockSetup () =
       </body>
     </xml>
     
-and clock ltc =
+and clock ltc : transaction page =
     case ltc of
 	[] => error <xml>No control setup</xml>
       | tc :: tcTail => 
@@ -1817,112 +1915,3 @@ and clock ltc =
 		</xml>
 	    end
 	end
-
-and index () =
-    u <- currUser ();
-    index_on u
-
-and chess f =
-    u <- currUser ();
-    genPageT (fn _ =>
-		 let
-		     val start = (if f = "" then
-				      startingFen
-				  else
-				      f)
-		 in
-		     cid <- fresh;
-		     inputFen <- source start;
-		     
-		     (board, _, _, _) <- generate_board start cid 67 True
-						     emptyTree
-						     (fn _ => return [])
-						     (fn s => return ())
-						     emptyTopLevelHandler
-						     (fn st => set inputFen (state_to_fen st))
-						     None;
-		     return <xml>
-		       <div class={row}>
-			 <div class={col_sm_6}>
-			   {board}
-			 </div>
-			 <div class={col_sm_6}>
-			   <div class={form_group}>
-			     <ctextbox class={form_control} source={inputFen} />
-			     <button class="btn btn-primary btn-sm" value="Set fen" onclick={fn _ => str <- get inputFen; redirect (url (chess str))} />
-			     </div>
-			   </div>
-			 </div>
-		       </xml>
-		 end) u ChessPage []
-    
-and shogi _ =
-    u <- currUser ();
-    editor <- SShogi.editor {Tree = SShogi.emptyGame (SShogi.startingPosition ()), OnPositionChanged = (fn _ => return ())};
-    genPageT (fn _ => return editor.Ed) u ShogiPage []
-    
-and weiqi f =
-    u <- currUser ();
-    genPageT (fn _ =>
-		 let
-		     val start = (if f = "" then
-				      SWeiqi.startingPosition ()
-				  else
-				      SWeiqi.sToP f)
-		 in
-		     inputFen <- source (SWeiqi.pToS start);
-		     editor <- SWeiqi.editor {
-			       Tree = SWeiqi.emptyGame start,
-			       OnPositionChanged = (fn p => set inputFen (SWeiqi.pToS p) (*;
-			       alert (SWeiqi.test p*))};
-		     return <xml>
-		       <div class={row}>
-			 <div class={col_sm_6}>
-			   {editor.Ed}
-			 </div>
-			 <div class={col_sm_6}>
-			   <div class={form_group}>
-			     <ctextbox class={form_control} source={inputFen} />
-			     <button class="btn btn-primary btn-sm" value="Set fen" onclick={fn _ => str <- get inputFen;
-												redirect (url (weiqi str))} />
-			     </div>
-			   </div>
-			 </div>		   
-		       </xml>
-		 end) u WeiqiPage []
-
-and math (e : string) =
-    u <- currUser ();
-    genPageT (fn _ =>
-		 
-		 inp <- source e;
-		 ddid <- fresh;
-		 let
-		     fun tick mj =
-			 let
-			     fun inner _ =
-				 t <- get inp;
-				 Mathjax.typesetcontent mj t ddid;
-				 setTimeout inner 1000;
-				 return ()
-			 in
-			     inner ()
-			 end
-		 in
-		     return <xml>
-		       <div class="row">
-			 <div class={col_sm_6}>
-			   <div id={ddid}>
-			   </div>
-			 </div>
-			 <div class={col_sm_6}>
-			     <active code={mj <- Mathjax.load ();
-					   tick mj;
-					   return <xml><ctextarea class="form-control" source={inp} /></xml>}>
-			   </active>		   
-
-		       </div>
-		     </div>		   
-    </xml>
-		 end
-	     ) u MathPage ((bless "/math.css") :: [])
