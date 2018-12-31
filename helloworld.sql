@@ -65,11 +65,11 @@ CREATE SEQUENCE uw_Database_postSeq;
              FOREIGN KEY (uw_id) REFERENCES uw_Database_user (uw_id)
            );
            
-           CREATE SEQUENCE uw_Helloworld_ChessRoom_s;
+           CREATE SEQUENCE uw_Sharedboard_ChessRoom_s;
             
-            CREATE TABLE uw_Helloworld_ChessRoom_t(uw_id int8 NOT NULL, 
-                                                    uw_client int4 NOT NULL, 
-                                                    uw_channel int8 NOT NULL,
+            CREATE TABLE uw_Sharedboard_ChessRoom_t(uw_id int8 NOT NULL, 
+                                                     uw_client int4 NOT NULL, 
+                                                     uw_channel int8 NOT NULL,
              PRIMARY KEY (uw_client, uw_id)
               
              );

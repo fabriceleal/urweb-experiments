@@ -11,9 +11,5 @@ val ptChess : postType = 0
 val ptWeiqi : postType = 1
 val ptShogi : postType = 2
 val ptFreeText : postType = 3
-			    
-
-
-
 
 				      

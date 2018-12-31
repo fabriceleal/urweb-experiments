@@ -1,4 +1,5 @@
 open Types
+open Chess
 
 functor Make(M : sig type t end) = struct
     sequence s
@@ -26,3 +27,6 @@ functor Make(M : sig type t end) = struct
         return r.N
 end
 
+structure ChessRoom = Make(struct
+			       type t = chessboardmsg
+			   end)

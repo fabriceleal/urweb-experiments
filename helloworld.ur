@@ -8,7 +8,8 @@ open Bootstrap4
 open Pgnparse
 open Nmarkdown
 open Game
-
+open Sharedboard
+     
 val maxFileSize = 1000000
 		  
 (* login page *)
@@ -97,10 +98,6 @@ datatype menuKind =
        | AllUsers
        | Invites
      
-fun getComments (id : int) : transaction (list string) =
-    List.mapQuery (SELECT comment.Content FROM comment WHERE comment.PositionId = {[id]} ORDER BY comment.Id)
-		  (fn i => i.Comment.Content)
-    
 
 fun optS2S o =
     case o of
@@ -115,76 +112,10 @@ fun optI2I o =
 fun optI [t] (o : t) : option t =
     Some o
 		  
-fun tree3 (root : option int) parentFen =
-    let
-	fun recurse root fen =
-	    List.mapQueryM (SELECT position.Id, position.Fen, position.Move, position.MoveAlg
-			    FROM position 
-			    WHERE {eqNullable' (SQL position.PreviousPositionId) root})
-			  (fn r =>
-			      case (r.Position.Move, r.Position.MoveAlg) of
-				  (Some move, Some alg) =>
-				  ch <- recurse (Some r.Position.Id) r.Position.Fen;
-				  cs <- getComments r.Position.Id;
-				  return (Node (r.Position.Id, fen, move, alg, cs, ch))
-				| (_, _) =>
-				  return (Node (r.Position.Id, "", "", "", [], []))
-			  )
-    in
-	case root of
-	    None =>
-	    return (Root (0, "", [], []))
-	  | Some root' => 
-	    ch <- recurse root parentFen;
-	    return (Root (root', parentFen, ch, []))
-    end
-
-fun treeOn (root : option int) parentFen rows =
-    let
-	fun recurse root fen =
-	    let 
-		val children = List.filter (fn e =>
-			    case (e.Position.PreviousPositionId, root) of
-				(None, None) => True
-			      | (Some a, Some b) => a = b
-			      | (_, _) => False) rows
-
-	    in
-		List.mp (fn r =>
-			      case (r.Position.Move, r.Position.MoveAlg) of
-				  (Some move, Some alg) =>
-				  Node (r.Position.Id, fen, move, alg, [], recurse (Some r.Position.Id) r.Position.Fen)
-				| (_, _) =>
-				  Node (r.Position.Id, "", "", "", [], [])
-			) children
-	    end
-    in
-	case root of
-	    None =>
-	    Root (0, "", [], [])
-	  | Some root' => 
-	    Root (root', parentFen, recurse root parentFen, [])
-    end
-
-fun tree4 (id: int) =
-    current <- oneRow (SELECT post.RootPositionId, position.Fen FROM post JOIN position ON post.RootPositionId = position.Id WHERE post.Id = {[id]});
-    tree3 (Some current.Post.RootPositionId) current.Position.Fen
-
-fun treeAtOnce (id:int) =
-    root <- oneRow (SELECT post.RootPositionId, position.Fen
-		    FROM post JOIN position ON post.RootPositionId = position.Id WHERE post.Id = {[id]});
-    rows <- queryL (SELECT position.PostId, position.Id, position.PreviousPositionId, position.Fen, position.Move, position.MoveAlg
-		    FROM position WHERE position.PostId = {[id]});
-    return (treeOn (Some root.Post.RootPositionId) root.Position.Fen rows)
-		     
 
 fun getRoom id =
     r <- oneRow (SELECT post.Room FROM post WHERE post.Id = {[id]});
     return r.Post.Room
-
-structure ChessRoom = Sharedboard.Make(struct
-					   type t = chessboardmsg
-				  end)
 
 fun addPostF idUser idPostParent txt =
     let
@@ -353,13 +284,8 @@ fun speak id line =
 	    room <- getRoom id;
 	    ChessRoom.send room (MChangeName txt)
 
-fun getTree id =
-    treeAtOnce id
 (*    tree4 id *)
 
-fun doSpeak id line =	 
-    rpc (speak id line)
-		 
 fun renderPostTree (id : int) (recTree : bool) : transaction xbody =
     let
 	fun clean () =
@@ -388,9 +314,58 @@ fun renderPostTree (id : int) (recTree : bool) : transaction xbody =
 	  </div>
 	</xml>
     end
-
+and doSpeak id line =	 
+    rpc (speak id line)
+   	 
 and postPage2 id () =
-    p <- oneRow (SELECT post.Id, post.PostType FROM post WHERE post.Id = {[id]});
+    p <- oneRow (SELECT post.Id, post.Nam, post.PostType FROM post WHERE post.Id = {[id]});
+    pname <- source p.Post.Nam;
+    renderPost p (fn postTree boardy viewer commentviewer =>		     
+		     commenttxt <- source "";
+		     newpostname <- source "";
+		     
+		     genPageU <xml>
+		       <div class={container}>
+			 <div class={row}>
+			   <ctextbox source={pname} />
+			   <button value="Send" onclick={fn _ =>
+							    txt <- get pname;
+							    doSpeak id (SChangeName(id, txt))} />
+			   </div> 
+			   <div class={row}>
+			     
+			     <div class={col_sm_2}>
+			       
+			       <button value="Back" onclick={fn _ => doSpeak id SBack } />
+				 <button value="Fw" onclick={fn _ => doSpeak id SForward } />
+				   <a link={downloadPost id}>download</a>
+
+				   { postTree }
+
+			     </div>
+			     <div class={col_sm_6}>
+			       {boardy} 
+			     </div>
+			     <div class={col_sm_4}>
+			       {viewer}
+			       
+			       {commentviewer}
+			       
+			       <div>
+				 <ctextarea source={commenttxt} />
+				 <button value="Comment" onclick={fn _ =>
+								     txt <- get commenttxt;
+								     doSpeak id (SComment txt);
+								     set commenttxt "" } />
+				 </div>
+			       </div>
+			     </div>
+			   </div>
+			 </xml> NMenu) renderPostTree doSpeak (fn c => case c of
+									     MChangeName t => set pname t
+									   | _ => return ())
+
+	    (*   
     current <- oneRow (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
 		       FROM post
 			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
@@ -453,7 +428,7 @@ and postPage2 id () =
 	    </div>
 	  </div>
 	  </div>
-	  </xml> NMenu
+	  </xml> NMenu *)
    
 and downloadPost id =
     let
