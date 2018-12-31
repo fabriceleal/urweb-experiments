@@ -63,6 +63,8 @@ $/string
 $/list
 ../urweb-nregex/nregex
 ../urweb-nregex/nregexpgn
+types
+database
 sharedboard
 chess
 weiqi

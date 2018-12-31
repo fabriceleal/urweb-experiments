@@ -1,16 +1,13 @@
+open Types
 
 functor Make(M : sig type t end) = struct
     sequence s
     table t : {Id : int, Client : client, Channel : channel M.t}
       PRIMARY KEY (Id, Client)
 
-    type topic = int
+    val create : transaction topic = nextval s
 
-    val inj : sql_injectable topic = _
-
-    val create = nextval s
-
-    fun subscribe id =
+    fun subscribe (id : topic) : transaction (channel M.t) =
         cli <- self;
         ro <- oneOrNoRows (SELECT t.Channel FROM t WHERE t.Id = {[id]} AND t.Client = {[cli]});
         case ro of
@@ -20,11 +17,11 @@ functor Make(M : sig type t end) = struct
             return ch
           | Some r => return r.T.Channel
 
-    fun send id msg =
+    fun send (id : topic) (msg : M.t) : transaction unit =
         queryI (SELECT t.Channel FROM t WHERE t.Id = {[id]})
         (fn r => Basis.send r.T.Channel msg)
 
-    fun subscribers id =
+    fun subscribers (id: topic) : transaction int =
         r <- oneRow (SELECT COUNT( * ) AS N FROM t WHERE t.Id = {[id]});
         return r.N
 end

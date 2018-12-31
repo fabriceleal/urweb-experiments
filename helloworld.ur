@@ -1,4 +1,4 @@
-
+open Database
 open Canvas_FFI
 open Chess
 open Weiqi
@@ -20,25 +20,6 @@ style content
 style commands
 style flip
 style cmd_button
-
-structure Room = Sharedboard.Make(struct
-				      type t = boardmsg
-				  end)
-(*
-fun eqNullable2 [tables ::: {{Type}}] [agg ::: {{Type}}] [exps ::: {Type}]
-    [t ::: Type] (_ : sql_injectable (option t))
-    (e1 : sql_exp tables agg exps t)
-    (e2 : sql_exp tables agg exps (option t)) =
-    sql_binary sql_eql e1 e2
-*)
-		 
-sequence postSeq
-sequence positionSeq
-sequence commentSeq
-sequence inviteSeq
-
-type userId = int
-
 
 datatype clockSide =
 	 CWhite
@@ -66,44 +47,17 @@ type timecontrol =
 
 type lsTimecontrol = list timecontrol
 
-table position : {Id: int, PostId: int, Fen : string, Move: option string, MoveAlg: option string, PreviousPositionId: option int }
-		     PRIMARY KEY Id,
-		     CONSTRAINT CPreviousPositionId FOREIGN KEY PreviousPositionId REFERENCES position (Id) ON DELETE CASCADE
-
-table post : { Id : int, Nam : string, RootPositionId: int, UserId: userId, CurrentPositionId : int, ParentPostId : option int, Room : Room.topic }
-		 PRIMARY KEY Id (*,
-		 CONSTRAINT CRootPositionId FOREIGN KEY RootPositionId REFERENCES position (Id) ON DELETE CASCADE,
-		 CONSTRAINT CCurrentPositionId FOREIGN KEY CurrentPositionId REFERENCES position (Id) ON DELETE CASCADE
-*)
-table comment : {Id: int, PositionId: int, Content: string, UserId: userId, Sent: time  }
-		    PRIMARY KEY Id
 
 open Pgn.Make(struct
 		  con id = #Id
 		  con parent = #PreviousPositionId
 		  val tab = position
 	      end)
-		
-sequence userSeq
-
-table user: {Id: userId, Nam: string, Pass: Hash.digest, Salt: string }
-		PRIMARY KEY Id
-		CONSTRAINT Nam UNIQUE Nam
 
 datatype inviteStatus =
 	 Sent
        | Accepted
        | Cancelled
-
-(* , Status: inviteStatus *)
-table invite : {Id: int, UserId: userId, InvitedId: option userId, Code: string, Email: string, Sent: time, Status: int}
-		   PRIMARY KEY Id,
-		   CONSTRAINT Code UNIQUE Code,
-		   CONSTRAINT Email UNIQUE Email
-
-table rootAdmin : { Id : userId }
-		      PRIMARY KEY Id,
-      CONSTRAINT Id FOREIGN KEY Id REFERENCES user(Id)
 
 fun cryptPass passS =
     salt <- Random.bytes 64;
@@ -128,16 +82,6 @@ task initialize = fn () =>
     if b then
         return ()
     else
-	(* salt <- Random.bytes 64;
-	let
-	    val saltEncoded = Base64_FFI.encode(salt)
-	    val passraw = "root" ^ saltEncoded
-	    val pass = Hash.sha512 (textBlob passraw)
-	in
-	    debug ("saltEncoded:" ^ saltEncoded);
-	    dml (INSERT INTO user (Id, Nam, Pass, Salt) VALUES (0, 'root', {[pass]}, {[saltEncoded]}));
-            dml (INSERT INTO rootAdmin (Id) VALUES (0))
-	end*)
 	insertUserWithId 0 "root" "root";
 	dml (INSERT INTO rootAdmin (Id) VALUES (0))
 
@@ -286,6 +230,10 @@ fun getRoom id =
     r <- oneRow (SELECT post.Room FROM post WHERE post.Id = {[id]});
     return r.Post.Room
 
+structure ChessRoom = Sharedboard.Make(struct
+					   type t = chessboardmsg
+				  end)
+
 fun addPostF idUser idPostParent txt =
     let
 
@@ -332,7 +280,7 @@ fun addPostF idUser idPostParent txt =
 	fun insertPost tree =
 	    id <- nextval postSeq;    
 	    idP <- nextval positionSeq;
-	    sharedboard <- Room.create;
+	    sharedboard <- ChessRoom.create;
     
 	    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId)
 		 VALUES ({[id]}, {[txt]}, {[idP]}, {[idP]}, {[sharedboard]}, {[idPostParent]}, {[idUser]}));
@@ -343,7 +291,6 @@ fun addPostF idUser idPostParent txt =
     in
 	insertPost tree
     end
-
 
 fun speak id line =
     mUserId <- currUserId ();
@@ -380,7 +327,7 @@ fun speak id line =
 		     
 		     room <- getRoom id;
 		     
-		     Room.send room (MPosition {State = (fen_to_state newFen),
+		     ChessRoom.send room (MPosition {State = (fen_to_state newFen),
 					       Old = state, Id = idP,
 					       Move = newMove, MoveAlg = newMoveAlg,
 					       Previous = row.Post.CurrentPositionId,
@@ -432,27 +379,27 @@ fun speak id line =
 	    
 	    dml (UPDATE post SET CurrentPositionId = {[idP]} WHERE Id = {[id]});		
 	    room <- getRoom id;
-	    Room.send room (MPosition {State = (fen_to_state row2.Position.Fen),
+	    ChessRoom.send room (MPosition {State = (fen_to_state row2.Position.Fen),
 				      Old = (fen_to_state row3.Position.Fen), Id = idP,
 				      Move = optS2S row2.Position.Move, MoveAlg = optS2S row2.Position.MoveAlg,
 				      Previous = optI2I row2.Position.PreviousPositionId, Highlight = []})
 	    
 	  | SHighlight sq =>
 	    room <- getRoom id;
-	    Room.send room (MHighlight sq)
+	    ChessRoom.send room (MHighlight sq)
 	  | SComment txt =>
 	    idC <- nextval commentSeq;
 	    t <- now;
 	    dml (INSERT INTO comment (Id, PositionId, Content, UserId, Sent) VALUES({[idC]}, {[id]}, {[txt]}, {[userId]}, {[t]} ));
 	    room <- getRoom id;
-	    Room.send room (MComment txt)
+	    ChessRoom.send room (MComment txt)
 	  | SNewPost (optP, txt) =>
 	    addPostF userId optP txt;
 	    return ()
 	  | SChangeName (id, txt) =>
 	    dml (UPDATE post SET Nam = {[txt]} WHERE Id = {[id]});
 	    room <- getRoom id;
-	    Room.send room (MChangeName txt)
+	    ChessRoom.send room (MChangeName txt)
 
 fun getTree id =
     treeAtOnce id
@@ -498,7 +445,7 @@ and postPage2 id () =
 		       WHERE post.Id = {[id]});
     postTree <- renderPostTree id False;
     cid <- fresh;
-    ch <- Room.subscribe current.Post.Room;
+    ch <- ChessRoom.subscribe current.Post.Room;
     pname <- source current.Post.Nam;
 
     pgnTree <- getTree current.Post.Id;
@@ -1279,7 +1226,7 @@ and pageablePosts userId page =
 						   
 						   (fn data acc =>		      
 						       cid <- fresh;
-						       ch <- Room.subscribe data.Post.Room;
+						       ch <- ChessRoom.subscribe data.Post.Room;
 						       (board, _, _, _) <- generate_board data.Position.Fen cid 20 False
 											  emptyTree
 											  (fn _ => return [])
@@ -1411,7 +1358,7 @@ and addPost newPost =
 	    fun insertPost nam idUser parent tree =
 		id <- nextval postSeq;    
 		idP <- nextval positionSeq;
-		sharedboard <- Room.create;
+		sharedboard <- ChessRoom.create;
 		
 		dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId)
 		     VALUES ({[id]}, {[nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[parent]}, {[idUser]}));
@@ -1432,7 +1379,7 @@ and addPost newPost =
 		    (* insert base post. *)
 		    id <- nextval postSeq;    
 		    idP <- nextval positionSeq;
-		    sharedboard <- Room.create;
+		    sharedboard <- ChessRoom.create;
 		    
 		    dml (INSERT INTO post (Id, Nam, RootPositionId, CurrentPositionId, Room, ParentPostId, UserId)
 			 VALUES ({[id]}, {[newPost.Nam]}, {[idP]}, {[idP]}, {[sharedboard]}, {[None]}, {[idUser]}));

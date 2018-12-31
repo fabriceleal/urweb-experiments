@@ -1,5 +1,6 @@
 open Canvas_FFI
-
+open Database
+     
 type lsHeaders = list (string * string)
 
 datatype pgnTree =
@@ -1485,7 +1486,7 @@ style comments_span
 
 type position = { Id: int, Previous : int, State: gamestate, Old : gamestate, Move : string, MoveAlg: string, Highlight: list square }
 		
-datatype boardmsg =
+datatype chessboardmsg =
 	 MHighlight of square
        | MPosition of position
        | MComment of string
@@ -1504,7 +1505,7 @@ type promstate = { Src: square, Dest: square }
 type boardstate = { Highlight: list square, Pieces: list piecerec, DragPiece: option draggingPiece,
 		    Full : gamestate, Prom: option promstate  }
 		  
-datatype serverboardmsg =
+datatype serverchessboardmsg =
 	 SMovePiece of square * square * option kind
        | SHighlight of square
        | SBack 
@@ -1531,7 +1532,7 @@ fun board_to_state (board : boardstate) : gamestate =
 val testFen = "rnbqkbnr/ppp1ppp1/7p/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6"
  *)
 
-fun emptyTopLevelHandler (msg : boardmsg) =
+fun emptyTopLevelHandler (msg : chessboardmsg) =
     return ()
 
 fun emptyTree _ =

@@ -97,7 +97,7 @@ val pieceDesambAlgebraicToMove :  gamestate -> string -> option move
 
 type position = { Id: int, Previous : int, State: gamestate, Old: gamestate, Move : string, MoveAlg: string, Highlight: list square }
 		
-datatype boardmsg =
+datatype chessboardmsg =
 	 MHighlight of square
        | MPosition of position
        | MComment of string
@@ -113,7 +113,7 @@ type boardstate = { Highlight: list square, Pieces: list piecerec, DragPiece: op
 		    Full : gamestate, Prom: option promstate  }
 
 		  
-datatype serverboardmsg =
+datatype serverchessboardmsg =
 	 SMovePiece of square * square * option kind
        | SHighlight of square
        | SBack 
@@ -123,7 +123,7 @@ datatype serverboardmsg =
        | SNewPost of option int * string
        | SChangeName of int * string
 
-val emptyTopLevelHandler : boardmsg -> transaction unit
+val emptyTopLevelHandler : chessboardmsg -> transaction unit
 
 val emptyTree : unit -> transaction pgnRoot
 
@@ -135,10 +135,10 @@ val generate_board : string ->
 		     bool ->
 		     (unit -> transaction pgnRoot) ->
 		     (unit -> transaction (list string)) ->
-		     (serverboardmsg -> transaction unit) ->
-		     (boardmsg -> transaction unit) ->
+		     (serverchessboardmsg -> transaction unit) ->
+		     (chessboardmsg -> transaction unit) ->
 		     (gamestate -> transaction unit) ->
-		     option (channel boardmsg) ->
+		     option (channel chessboardmsg) ->
 		     transaction (xbody * xbody * xbody * (unit -> transaction (option gamestate)))
 
 val state_to_board : gamestate -> boardstate
