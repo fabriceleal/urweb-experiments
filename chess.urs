@@ -1,28 +1,12 @@
 
 type lsHeaders = list (string * string)
-		 
-datatype pgnTree =
-	 Node of int * string * string * string * (list string) * (list pgnTree)
-	 
-datatype pgnRoot =
-	 Root of int * string * list pgnTree * lsHeaders
-
-val getH : lsHeaders -> string -> string
-
-val show_pgn_tree : show pgnTree
-
-val show_pgn_root : show pgnRoot
-		 
+		 		 
 datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |
 	 BlackKing | BlackQueen | BlackRook | BlackBishop | BlackKnight | BlackPawn
-
-datatype kind = King | Queen | Rook | Bishop | Knight | Pawn
 
 type piecerec = { X: int, Y : int, Piece : piece  }
 
 type square = { X: int, Y : int}
-	      
-type move = { Src: square, Dest: square, Prom: option kind}
 	      
 datatype player = White | Black
 
@@ -37,6 +21,22 @@ type gamestate = {
      HalfMove : int,
      FullMove : int
 }
+		 
+datatype pgnTree =
+	 Node of int * gamestate * string * string * (list string) * (list pgnTree)
+	 
+datatype pgnRoot =
+	 Root of int * gamestate * list pgnTree * lsHeaders
+
+val getH : lsHeaders -> string -> string
+
+val show_pgn_tree : show pgnTree
+
+val show_pgn_root : show pgnRoot
+
+datatype kind = King | Queen | Rook | Bishop | Knight | Pawn
+	      
+type move = { Src: square, Dest: square, Prom: option kind}
 
 val startingFen : string
 		 

@@ -3,11 +3,32 @@ open Database
      
 type lsHeaders = list (string * string)
 
+datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |
+	 BlackKing | BlackQueen | BlackRook | BlackBishop | BlackKnight | BlackPawn
+
+datatype player = White | Black
+
+type piecerec = { X: int, Y : int, Piece : piece  }
+
+type square = { X: int, Y : int}
+
+type gamestate = {
+     Pieces : list piecerec,
+     Player : player,
+     WK : bool,
+     WQ : bool,
+     BK : bool,
+     BQ : bool,
+     EnPassant : option square,
+     HalfMove : int,
+     FullMove : int
+     }
+		 
 datatype pgnTree =
-	 Node of int * string * string * string * (list string) * (list pgnTree)
+	 Node of int * gamestate * string * string * (list string) * (list pgnTree)
 	 
 datatype pgnRoot =
-	 Root of int * string * list pgnTree * lsHeaders
+	 Root of int * gamestate * list pgnTree * lsHeaders
 
 fun getH hdrs k =
     case hdrs of
@@ -24,40 +45,14 @@ fun dbgTree node =
     case node of
 	Node (_, _, _, alg, _, children) =>
 	alg ^ " (" ^ (List.foldr (fn n acc => (dbgTree n) ^ acc) "" children) ^ ") "
-		 
-val show_pgn_tree = mkShow dbgTree
-		 
-val show_pgn_root = mkShow (fn root =>
-			       case root of
-				   Root (_, fen, children, _) =>
-				   "Pgn(" ^ fen ^ ") = " ^ (List.foldr (fn n acc => (show n) ^ acc) "" children))
 
-datatype piece = WhiteKing | WhiteQueen | WhiteRook | WhiteBishop | WhiteKnight | WhitePawn |
-	 BlackKing | BlackQueen | BlackRook | BlackBishop | BlackKnight | BlackPawn
 
 datatype kind = King | Queen | Rook | Bishop | Knight | Pawn
 
-datatype player = White | Black
-
 datatype castle = Kingside | Queenside
-
-type piecerec = { X: int, Y : int, Piece : piece  }
-
-type square = { X: int, Y : int}
 
 type move = { Src: square, Dest: square, Prom: option kind}
 	      
-type gamestate = {
-     Pieces : list piecerec,
-     Player : player,
-     WK : bool,
-     WQ : bool,
-     BK : bool,
-     BQ : bool,
-     EnPassant : option square,
-     HalfMove : int,
-     FullMove : int
-     }
 
 (*  
 val pieces : list piecerec =
@@ -645,6 +640,14 @@ fun state_to_fen state : string  =
 								     (" " :: (show state.HalfMove) :: " " :: (show state.FullMove) :: []) ) 
 								
 			 ))))
+
+    		 
+val show_pgn_tree = mkShow dbgTree
+		 
+val show_pgn_root = mkShow (fn root =>
+			       case root of
+				   Root (_, st, children, _) =>
+				   "Pgn(" ^ (state_to_fen st) ^ ") = " ^ (List.foldr (fn n acc => (show n) ^ acc) "" children))
 
 
 datatype sqPresence = Empty | Foe | Nvm
@@ -1485,7 +1488,7 @@ style wrapping_span
 style comments_span
 
 type position = { Id: int, Previous : int, State: gamestate, Old : gamestate, Move : string, MoveAlg: string, Highlight: list square }
-		
+	
 datatype chessboardmsg =
 	 MHighlight of square
        | MPosition of position
@@ -1559,14 +1562,14 @@ fun ltreeToMtree (ls : list pgnTree) : transaction (list mutableTree) =
 	    lsCh <- ltreeToMtree children;
 	    ch <- source lsCh;
 	    rest <- ltreeToMtree t;
-	    return ((Move {Id = id, Position = fen_to_state position, Move = move, MoveAlg = alg, Children = ch}) :: rest)
+	    return ((Move {Id = id, Position = position, Move = move, MoveAlg = alg, Children = ch}) :: rest)
 		 
 fun treeToMtree (root : pgnRoot) : transaction mutableTreeRoot =
     case root of
 	Root (id, position, children, _) =>
 	ls <- ltreeToMtree children;
 	c <- source ls;
-	return (StartP {Id=id, Position = fen_to_state position, Children = c })
+	return (StartP {Id=id, Position = position, Children = c })
 
 fun pToNode p =
     ch <- source [];

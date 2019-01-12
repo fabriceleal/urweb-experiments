@@ -158,7 +158,7 @@ fun addPostF idUser idPostParent txt =
 		Root (_, fen, children, hdrs) => 
 		dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[fen]},
 												    {[None]}, {[None]}, {[None]} ));
-		importChildren id idP fen children
+		importChildren id idP (state_to_fen fen) children
 		
 	fun insertPost tree =
 	    id <- nextval postSeq;    
@@ -434,7 +434,7 @@ and downloadPost id =
     let
 	fun renderPgnN pgnN siblings forceAlg =
 	    case pgnN of
-		Node (idP, fen, move, moveAlg, comments, children) =>
+		Node (idP, state, move, moveAlg, comments, children) =>
 		let
 		    val rest = case children of
 				   [] => ""
@@ -445,7 +445,7 @@ and downloadPost id =
 					   | _ :: _ =>
 					     (List.foldl (fn rc acc => acc ^ " (" ^ (renderPgnN rc [] True) ^ ") ") "" siblings)
 		in
-		    (moveToAlgebraic (fen_to_state fen) (str_to_move move) moveAlg forceAlg) ^ siblingsRender ^ " " ^ rest
+		    (moveToAlgebraic state (str_to_move move) moveAlg forceAlg) ^ siblingsRender ^ " " ^ rest
 		end		    
 		
 	and  renderPgn pgn =
@@ -1284,10 +1284,14 @@ and addPost newPost =
 		
 	    fun importTree id idP root =
 		case root of
-		    Root (_, fen, children, _) => 
-		    dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[fen]},
-													{[None]}, {[None]}, {[None]} ));
-		    importChildren id idP fen children
+		    Root (_, st, children, _) =>
+		    let
+			val fen = state_to_fen st
+		    in
+			dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[fen]},
+													    {[None]}, {[None]}, {[None]} ));
+			importChildren id idP fen children
+		    end
 		    
 	    fun insertPost nam typ idUser parent tree =
 		id <- nextval postSeq;    
