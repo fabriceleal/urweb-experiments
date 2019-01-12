@@ -1,5 +1,6 @@
+open Types
 open Canvas_FFI
-
+     
 datatype player = White | Black
 
 val playerEq : eq player = mkEq (fn a b =>
@@ -351,8 +352,8 @@ fun move (pos: position) (newmove : piecerec) : option position =
     else
 	None
 
-datatype gameTree = Node of int * position * piecerec * string * (list string) * (list gameTree)		    
-datatype gameRoot = Root of int * position * list gameTree * list (string * string)
+datatype gameTree = Node of nodeId * position * piecerec * userSer * (list string) * (list gameTree)		    
+datatype gameRoot = Root of nodeId * position * list gameTree * lsHeaders
 
 fun getPosition t =
     case t of

@@ -22,3 +22,9 @@ fun optStrToTyp (s: option string) : topic =
     case s of
 	None => ptFreeText
       | Some s' => strToTyp s'
+
+type nodeId = int
+type userSer = string
+type lsHeaders = list (string * string)
+
+
