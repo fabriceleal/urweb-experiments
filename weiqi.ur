@@ -355,6 +355,15 @@ fun move (pos: position) (newmove : piecerec) : option position =
 datatype gameTree = Node of nodeId * position * piecerec * userSer * (list string) * (list gameTree)		    
 datatype gameRoot = Root of nodeId * position * list gameTree * lsHeaders
 
+datatype weiqiboardmsg =
+	 MPosition of position
+       | MComment of string
+
+datatype serverweiqiboardmsg =
+	 SMovePiece of piecerec
+       | SPosition of int
+       | SComment of string
+			    
 fun getPosition t =
     case t of
 	Root (_, p, _, _) =>

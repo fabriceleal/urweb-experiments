@@ -11,11 +11,6 @@ signature GAME = sig
     val pToS : position -> string
     val sToP : string -> position
 			 
-(*
-    datatype gameTree = Node of nodeId * position * move * userSer * (list string) * (list gameTree)		    
-    datatype gameRoot = Root of nodeId * position * list gameTree * lsHeaders
- *)
-			 
     type gameTree
     type gameRoot
 				
