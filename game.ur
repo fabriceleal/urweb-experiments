@@ -61,38 +61,10 @@ structure SWeiqi : GAME = struct
     fun emptyGame p : gameRoot =
 	Root (0, p, [], [])
 
-    fun test p = (*
-	"groups of " ^
-	(case p.Player of White => "W " | Black => "B ") ^
-		  (show (List.length (allgroups p.Pieces p.Player)))*)
-	
+    fun test p = 
 	case p.Pieces of
 	    [] => "0"
-	  | h :: _ =>
-	    (*let
-		val (l, _) = (alladjacentto h p.Pieces)
-	    in
-		show (List.length l)
-	    end*)(*
-	    let
-		val l = (piecesAdjacent h (other h.Piece) p.Pieces)
-	    in
-		show (List.length l)
-	    end*)
-	    (*
-	    let
-		val l = (piecesAdjacent h (other h.Piece) p.Pieces)
-	    in
-		case l of
-		    [] => "0"
-		  | h :: _ =>
-		    let
-			val (l, _) = (alladjacentto h p.Pieces)
-		    in
-			show (countliberties l p.Pieces)
-		    end		    
-	    end *)
-
+	  | h :: _ =>	    
 	    let
 		val l = Weiqi.groupsadjacentto h p.Pieces
 		val l2 = List.filter
@@ -100,34 +72,10 @@ structure SWeiqi : GAME = struct
 	    in
 		show (List.length l2)
 	    end
-	    
-	    
-	    (*show (List.length
-		      (List.filter
-			   (fn g => hasnoliberties g p.Pieces)
-			   (groupsadjacentto h p.Pieces)))*)
-	    (*case (List.filter
-			   (fn g => hasnoliberties g p.Pieces)
-			   (groupsadjacentto h p.Pieces)) of
-		[] => "0"
-	      | h :: _ => 
-		(case h of
-		     [] => "0"
-		   | piece :: _ =>
-		     (show (strsub coordinates piece.X)) ^ (show (strsub coordinates piece.Y))
-		)*)
-		
-	(*show (List.length (removeIfInL {X=0,Y=0,Piece=Black}
-
-				       ({X=0,Y=1,Piece=Black} ::
-							      {X=0,Y=2,Piece=Black} ::
-	     {X=0,Y=0,Piece=Black} :: [])))*)
-	    
 		      
     val pToS = Weiqi.pToS	
 	
     val sToP = Weiqi.sToP
-
 
     fun getPosition t =
 	case t of

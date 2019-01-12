@@ -94,6 +94,10 @@ fun renderChessPost id boilerplate renderPostTree doSpeak fnCb =
 							    emptyOnGameState
 							    (Some ch);
     boilerplate postTree boardy pgnviewer commentviewer
+
+fun renderWeiqiPost id boilerplate renderPostTree _ _ =
+    postTree <- renderPostTree id False;
+    boilerplate postTree <xml></xml> <xml></xml> <xml></xml>
     
 fun renderPost p boilerplate renderPostTree doSpeak fnCb =
     let
@@ -103,5 +107,8 @@ fun renderPost p boilerplate renderPostTree doSpeak fnCb =
 	if typ = ptChess then
 	    renderChessPost id boilerplate renderPostTree doSpeak fnCb
 	else
-	    error <xml>Unknown post type</xml>
+	    if typ = ptWeiqi then
+		renderWeiqiPost id boilerplate renderPostTree doSpeak fnCb
+	    else
+		error <xml>Unknown post type</xml>
     end
