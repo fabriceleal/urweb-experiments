@@ -1,3 +1,4 @@
+open Canvas_FFI
 
 datatype player = White | Black
 
@@ -349,3 +350,195 @@ fun move (pos: position) (newmove : piecerec) : option position =
 	Some (makemove pos newmove)
     else
 	None
+
+datatype gameTree = Node of int * position * piecerec * string * (list string) * (list gameTree)		    
+datatype gameRoot = Root of int * position * list gameTree * list (string * string)
+
+fun getPosition t =
+    case t of
+	Root (_, p, _, _) =>
+	p
+
+fun generate_board (tree : gameRoot) (onChange : position -> transaction unit) : transaction xbody =
+    c <- fresh;
+    rs <- source (Some {Mouse=None, Position=getPosition tree});
+    let
+	val stonehf = 13
+	val stonesz = stonehf * 2
+	val space = 27
+	val offs = stonesz
+	val lines = 18 (* actual lines - 1*)
+	val w = space * lines
+	val h = space * lines
+	val cw = w + (offs * 2)
+	val ch = h + (offs * 2)
+
+	fun screenToCoord rawX rawY =
+	    let
+		val xx = (rawX - offs + space / 2) / space
+		val yy = (rawY - offs + space / 2) / space
+	    in
+		if xx > -1 && xx <= lines &&
+		   yy > -1 && yy <= lines then
+		    Some {X=xx , Y=yy}
+		else
+		    None
+	    end
+
+	fun mousemove e =
+	    let
+		val c = screenToCoord e.OffsetX e.OffsetY
+	    in
+		s <- get rs;
+		case s of
+		    None => return ()
+		  | Some s' =>
+		    set rs (Some {
+			    Position = s'.Position,
+			    Mouse = c
+			   })
+	    end
+	    
+	fun mouseclick e =
+	    let
+		val cc = screenToCoord e.OffsetX e.OffsetY
+	    in
+		case cc of
+		    None => return ()
+		  | Some c => 	       
+		    s <- get rs;
+		    case s of
+			None => return ()
+		      | Some s' =>
+			let
+			    val r = {Piece=s'.Position.Player,
+				     X = c.X,
+				     Y = c.Y}
+			in
+			    case (move s'.Position r) of
+				None => return ()
+			      | Some p =>
+				set rs (Some {
+					Position = p,
+					Mouse = s'.Mouse
+				       });
+				onChange p
+			end			    
+	    end
+	    
+	fun onloadFn () =
+	    ctx <- getContext2d c;
+	    wstone <- make_img(bless("/w.svg"));
+	    bstone <- make_img(bless("/b.svg"));
+	    let
+		fun playerToStone p =
+		    case p of
+			White => wstone
+		      | Black => bstone
+
+		and noneAt pieces x y =
+		    case pieces of
+			[] => True
+		      | h :: t =>
+			if h.X = x && h.Y = y then
+			    False
+			else
+			    noneAt t x y
+			    
+		and drawHs () =
+		    let
+			fun drawH n =
+			    drawLine ctx offs (offs + n * space) (w + offs) (offs + n * space);
+			    if n = 0 then
+				return ()
+			    else
+				drawH (n - 1)
+				
+		    in
+			drawH lines
+		    end
+
+		and drawVs () =
+		    let
+			fun drawV n =
+			    drawLine ctx (offs + n * space) offs (offs + n * space) (h + offs);
+			    if n = 0 then
+				return ()
+			    else				
+				drawV (n - 1)
+				
+		    in
+			drawV lines
+		    end
+
+		and drawMarker x y =		    
+		    beginPath ctx;
+		    arc ctx
+			(float ((x * space) + offs))
+			(float ((y * space) + offs))
+			4.0 0.0 (3.14 * 2.0) False;
+		    closePath ctx;
+		    fill ctx
+		    
+		and drawStone img x y =
+		    drawImage2 ctx img
+			       (float ((x * space) + offs - stonehf))
+			       (float ((y * space) + offs - stonehf))
+			       (float stonesz) (float stonesz)
+
+		and drawStones pieces =
+		    case pieces of
+			[] => return ()
+		      | h :: t =>
+			drawStone (playerToStone h.Piece) h.X h.Y;
+			drawStones t
+			
+		and drawPosition p =
+		    case p of
+			None => return ()
+		      | Some p' =>
+			drawStones p'.Position.Pieces;
+			case p'.Mouse of
+			    None => return ()
+			  | Some p'' =>
+			    if noneAt p'.Position.Pieces p''.X p''.Y then
+				drawStone (playerToStone p'.Position.Player) p''.X p''.Y
+			    else
+				return ()
+				
+		and drawBoard () =
+		    clearRect ctx (float 0) (float 0) (float cw) (float ch);
+		    setFillStyle ctx (make_rgba 212 172 89 1.0);
+		    fillRect ctx 0 0 cw ch;		    
+		    drawHs ();
+		    drawVs ();
+
+		    setFillStyle ctx (make_rgba 0 0 0 1.0);
+		    drawMarker 3 3;
+		    drawMarker 3 9;
+		    drawMarker 3 15;
+
+		    drawMarker 9 3;
+		    drawMarker 9 9;
+		    drawMarker 9 15;
+		    
+		    drawMarker 15 3;
+		    drawMarker 15 9;
+		    drawMarker 15 15;			
+
+		    p <- get rs;
+		    drawPosition p;
+		    
+		    return ()
+	    in
+		requestAnimationFrame2 drawBoard;
+		return <xml></xml>
+	    end	    
+    in	
+	return <xml>
+	  <canvas id={c} width={cw} height={ch} onclick={mouseclick} onmousemove={mousemove}>
+	  </canvas>
+	  <active code={onloadFn ()}>
+	  </active>
+	</xml>
+    end

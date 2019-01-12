@@ -97,7 +97,8 @@ fun renderChessPost id boilerplate renderPostTree doSpeak fnCb =
 
 fun renderWeiqiPost id boilerplate renderPostTree _ _ =
     postTree <- renderPostTree id False;
-    boilerplate postTree <xml></xml> <xml></xml> <xml></xml>
+    boardy <- Weiqi.generate_board (Weiqi.Root (0, Weiqi.startingPosition, [], [])) (fn _ => return ());
+    boilerplate postTree boardy <xml></xml> <xml></xml>
     
 fun renderPost p boilerplate renderPostTree doSpeak fnCb =
     let
