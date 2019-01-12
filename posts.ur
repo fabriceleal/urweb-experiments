@@ -1,5 +1,4 @@
 open Database
-open Chess
 open Sharedboard
 
   
@@ -86,7 +85,7 @@ fun renderChessPost id boilerplate renderPostTree doSpeak fnCb =
     pgnTree <- getTree current.Post.Id;
     mutTree <- treeToMtree pgnTree;
 
-    (boardy, pgnviewer, commentviewer, _) <- generate_board current.Position.Fen cid 60 True
+    (boardy, pgnviewer, commentviewer, _) <- Chess.generate_board current.Position.Fen cid 60 True
 							    (fn _ => getTree current.Post.Id)
 							    (fn _ => getComments current.Post.Id )
 							    (fn s => doSpeak current.Post.Id s)

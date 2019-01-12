@@ -30,6 +30,8 @@ end
 structure ChessRoom = Make(struct
 			       type t = chessboardmsg
 			   end)
+(*
 structure WeiqiRoom = Make(struct
 			       type t = weiqiboardmsg
 			  end)
+*)
