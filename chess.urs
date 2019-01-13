@@ -28,6 +28,8 @@ datatype pgnTree =
 datatype pgnRoot =
 	 Root of int * gamestate * list pgnTree * lsHeaders
 
+val emptyBoard : gamestate
+
 val getH : lsHeaders -> string -> string
 
 val show_pgn_tree : show pgnTree

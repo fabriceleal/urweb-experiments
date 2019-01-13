@@ -120,9 +120,8 @@ fun getRoom id =
 fun addPostF idUser idPostParent txt =
     let
 
-	fun importChildren id idP fen children =
+	fun importChildren id idP (state : gamestate) children =
 	    let
-		val state = fen_to_state fen
 		fun importChildrenAux children =
 		    case children of
 			[] => return ()
@@ -144,7 +143,7 @@ fun addPostF idUser idPostParent txt =
 				    in
 					dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId )
 					     VALUES ({[nidP]}, {[id]}, {[nfen]}, {[Some nmove]}, {[Some alg]}, {[Some idP]} ));
-					importChildren id nidP nfen children2;
+					importChildren id nidP newState children2;
 					importChildrenAux t
 				    end
 			    end
@@ -155,10 +154,10 @@ fun addPostF idUser idPostParent txt =
 	    
 	fun importTree id idP root =
 	    case root of
-		Root (_, fen, children, hdrs) => 
-		dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[fen]},
+		Root (_, state, children, hdrs) => 
+		dml (INSERT INTO position (Id, PostId, Fen, Move, MoveAlg, PreviousPositionId ) VALUES ({[idP]}, {[id]}, {[state_to_fen state]},
 												    {[None]}, {[None]}, {[None]} ));
-		importChildren id idP (state_to_fen fen) children
+		importChildren id idP state children
 		
 	fun insertPost tree =
 	    id <- nextval postSeq;    
@@ -170,7 +169,7 @@ fun addPostF idUser idPostParent txt =
 	    
 	    importTree id idP tree
 
-	val tree = Root (0, startingFen, [], [])
+	val tree = Root (0, fen_to_state startingFen, [], [])
     in
 	insertPost tree
     end
@@ -1311,7 +1310,7 @@ and addPost newPost =
 
 	    fun insertPosts idUser ls =
 		case ls of
-		    [] => insertPost newPost.Nam (optStrToTyp newPost.Typ) idUser None (Root (0, startingFen, [], []))
+		    [] => insertPost newPost.Nam (optStrToTyp newPost.Typ) idUser None (Root (0, fen_to_state startingFen, [], []))
 		  | h :: [] => insertPost newPost.Nam (optStrToTyp newPost.Typ) idUser None h
 		  | h :: t =>
 		    (* insert base post. *)

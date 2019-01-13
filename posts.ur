@@ -17,17 +17,17 @@ fun tree3 (root : option int) parentFen =
 				  (Some move, Some alg) =>
 				  ch <- recurse (Some r.Position.Id) r.Position.Fen;
 				  cs <- getComments r.Position.Id;
-				  return (Node (r.Position.Id, fen, move, alg, cs, ch))
+				  return (Node (r.Position.Id, fen_to_state fen, move, alg, cs, ch))
 				| (_, _) =>
-				  return (Node (r.Position.Id, "", "", "", [], []))
+				  return (Node (r.Position.Id, Chess.emptyBoard, "", "", [], []))
 			  )
     in
 	case root of
 	    None =>
-	    return (Root (0, "", [], []))
+	    return (Root (0, Chess.emptyBoard, [], []))
 	  | Some root' => 
 	    ch <- recurse root parentFen;
-	    return (Root (root', parentFen, ch, []))
+	    return (Root (root', fen_to_state parentFen, ch, []))
     end
 
 fun treeOn (root : option int) parentFen rows =
@@ -44,17 +44,17 @@ fun treeOn (root : option int) parentFen rows =
 		List.mp (fn r =>
 			      case (r.Position.Move, r.Position.MoveAlg) of
 				  (Some move, Some alg) =>
-				  Node (r.Position.Id, fen, move, alg, [], recurse (Some r.Position.Id) r.Position.Fen)
+				  Node (r.Position.Id, fen_to_state fen, move, alg, [], recurse (Some r.Position.Id) r.Position.Fen)
 				| (_, _) =>
-				  Node (r.Position.Id, "", "", "", [], [])
+				  Node (r.Position.Id, Chess.emptyBoard, "", "", [], [])
 			) children
 	    end
     in
 	case root of
 	    None =>
-	    Root (0, "", [], [])
+	    Root (0, Chess.emptyBoard, [], [])
 	  | Some root' => 
-	    Root (root', parentFen, recurse root parentFen, [])
+	    Root (root', fen_to_state parentFen, recurse root parentFen, [])
     end
 	     
      

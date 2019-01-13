@@ -1520,7 +1520,11 @@ datatype serverchessboardmsg =
 
 fun state_to_board state =
     { Highlight = [], Full = state, Pieces=state.Pieces, DragPiece = None, Prom = None}
-	
+
+val emptyBoard = { Pieces = [], Player = White, WK = False, WQ = False,
+		   BK = False, BQ = False, EnPassant = None, HalfMove = 0,
+		   FullMove = 0}
+    
 fun fen_to_board fen =
     let
 	val state = fen_to_state fen
@@ -1539,7 +1543,7 @@ fun emptyTopLevelHandler (msg : chessboardmsg) =
     return ()
 
 fun emptyTree _ =
-    return (Root (0, "", [], []))
+    return (Root (0, emptyBoard, [], []))
 
 fun emptyOnGameState _ =
     return ()
