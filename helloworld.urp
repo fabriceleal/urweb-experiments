@@ -31,6 +31,7 @@ file /favicon.ico rsrc/imgs/icons8-turtle-48.png
 library ../urweb-base64/lib
 library ../urweb-mathjax/lib
 library ../urweb-canvas/src/canvas
+library ../urweb-chess/lib
 library ../urweb-filetext/filetext_FFI
 library ../urweb-nmarkdown/nmarkdown
 library $/crypto-hash-openssl/lib
@@ -65,12 +66,9 @@ $/list
 ../urweb-nregex/nregexpgn
 types
 database
-chess
 weiqi
 shogi
 game
-pgn
-pgnparse
 buffer
 sharedboard
 posts

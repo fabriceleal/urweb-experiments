@@ -15,13 +15,13 @@ val maxFileSize = 1000000
 (* login page *)
 style form_signin
 style form_signin_sep
-
+(*
 open Pgn.Make(struct
 		  con id = #Id
 		  con parent = #PreviousPositionId
 		  val tab = position
 	      end)
-
+*)
 datatype inviteStatus =
 	 Sent
        | Accepted
