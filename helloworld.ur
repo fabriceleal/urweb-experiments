@@ -149,70 +149,6 @@ and postPage2 id () =
 									     MChangeName t => set pname t
 									   | _ => return ())
 
-	    (*   
-    current <- oneRow (SELECT post.Id, post.Nam, post.Room, post.RootPositionId, Position.Fen, PositionR.Fen
-		       FROM post
-			 JOIN position AS Position ON post.CurrentPositionId = Position.Id
-			 JOIN position AS PositionR ON post.RootPositionId = PositionR.Id
-		       WHERE post.Id = {[id]});
-    postTree <- renderPostTree id False;
-    cid <- fresh;
-    ch <- ChessRoom.subscribe current.Post.Room;
-    pname <- source current.Post.Nam;
-
-    pgnTree <- getTree current.Post.Id;
-    mutTree <- treeToMtree pgnTree;
-    
-    (boardy, pgnviewer, commentviewer, _) <- generate_board current.Position.Fen cid 60 True
-							 (fn _ => getTree current.Post.Id)
-							 (fn _ => getComments current.Post.Id )
-							 (fn s => doSpeak current.Post.Id s)
-							 (fn c => case c of
-								      MChangeName t => set pname t
-								    | _ => return ())
-							 emptyOnGameState
-							 (Some ch);
-    commenttxt <- source "";
-    newpostname <- source "";
-
-    genPageU <xml>
-	<div class={container}>
-	  <div class={row}>
-	    <ctextbox source={pname} />
-	    <button value="Send" onclick={fn _ =>
-					     txt <- get pname;
-					     doSpeak id (SChangeName(id, txt))} />
-	    </div>
-	  <div class={row}>
-	    
-	    <div class={col_sm_2}>
-		
-	      <button value="Back" onclick={fn _ => doSpeak id SBack } />
-		<button value="Fw" onclick={fn _ => doSpeak id SForward } />
-		  <a link={downloadPost id}>download</a>
-
-		  { postTree }
-
-	    </div>
-	    <div class={col_sm_6}>
-	      {boardy}
-	    </div>
-	    <div class={col_sm_4}>
-	      {pgnviewer}
-	      
-	      {commentviewer}
-		
-	      <div>
-		<ctextarea source={commenttxt} />
-		<button value="Comment" onclick={fn _ =>
-						    txt <- get commenttxt;
-						    doSpeak id (SComment txt);
-						    set commenttxt "" } />
-	      </div>
-	    </div>
-	  </div>
-	  </div>
-	  </xml> NMenu *)
    
 and downloadPost id =
     let
@@ -362,24 +298,10 @@ and validateAndCreate u =
 	insertUserWithId idU u.Bleh u.Blah;
 	return None
       | _ => return vRes
-    
-    (*
-and newUser u =
-    vRes <- validateNewUser u;
-    case vRes of
-	None =>
-	redirect (url (main ()))
-      | Some str =>
-	error <xml>{[str]}</xml>
-	*)
 	
-(*    redirect (url (main ()))*)
-	
-and createAccount invCode =
-    	
+and createAccount invCode =    	
     cinvitecode <- source invCode;
     cnam <- source "";
-(*    cemail <- source "";*)
     cpass <- source "";
     cpassconf <- source "";
     cerr <- source "";
@@ -512,7 +434,7 @@ and invites () =
 				}
 			      </td>
 			    </tr>
-			  </xml>) <xml></xml>; (**)
+			  </xml>) <xml></xml>;
 	genPage
 	    <xml>	      
 		Send invite: you have x left
@@ -540,24 +462,6 @@ and handleTestUpload r =
 	content
 	{[Filetext_FFI.blobAsText (fileData r.Fil)]}
 	<br />
-	(*
-	split:
-	<br />
-	{(case (split (Filetext_FFI.blobAsText (fileData r.Fil))) of
-	      (a, b) =>
-	      <xml>
-		{List.foldr (fn i acc => <xml>ST {[i]} END<br /> {acc}</xml>) <xml></xml> a }
-		<br />
-		Rest
-		<br />
-		ST {[b]} END
-		<br />
-
-	      </xml>
-	)}
-	<br />
-	 *)
-
 	
 	split2:
 	<br />
