@@ -54,10 +54,12 @@ $/list
 ../urweb-nregex/nregexpgn
 types
 database
+session
 weiqi
 shogi
 game
 buffer
 sharedboard
 posts
+chessdb
 helloworld
