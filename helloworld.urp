@@ -1,15 +1,3 @@
-file /BlackKing.svg fonts/merida/svg/BlackKing.svg
-file /BlackQueen.svg fonts/merida/svg/BlackQueen.svg
-file /BlackRook.svg fonts/merida/svg/BlackRook.svg
-file /BlackBishop.svg fonts/merida/svg/BlackBishop.svg
-file /BlackKnight.svg fonts/merida/svg/BlackKnight.svg
-file /BlackPawn.svg fonts/merida/svg/BlackPawn.svg
-file /WhiteKing.svg fonts/merida/svg/WhiteKing.svg
-file /WhiteQueen.svg fonts/merida/svg/WhiteQueen.svg
-file /WhiteRook.svg fonts/merida/svg/WhiteRook.svg
-file /WhiteBishop.svg fonts/merida/svg/WhiteBishop.svg
-file /WhiteKnight.svg fonts/merida/svg/WhiteKnight.svg
-file /WhitePawn.svg fonts/merida/svg/WhitePawn.svg
 file /fuhyo.svg fonts/shogi/fuhyo.svg
 file /kakugyo.svg fonts/shogi/kakugyo.svg
 file /hisha.svg fonts/shogi/hisha.svg
