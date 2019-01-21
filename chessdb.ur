@@ -112,7 +112,8 @@ fun speak id line =
 			      {[Some row.Post.CurrentPositionId]}) );
 		     
 		     room <- getRoom id;
-		     
+		     debug "alg:";
+		     debug newMoveAlg;
 		     ChessRoom.send room (MPosition {State = (fen_to_state newFen),
 					       Old = state, Id = idP,
 					       Move = newMove, MoveAlg = newMoveAlg,
